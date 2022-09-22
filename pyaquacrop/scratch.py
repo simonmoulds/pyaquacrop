@@ -231,7 +231,6 @@ def _write_soil_profile_input_file():
     # See https://stackoverflow.com/a/1126064 for an explanation of
     # Fortran read() statements
     header = _soil_data_header()
-    # TODO test the hypothesis that the formatting is unimportant, so long as the order is correct
     header = header + \
         '  Thickness  Sat   FC    WP     Ksat   Penetrability  Gravel  CRa       CRb           description' + LINESEP + \
         '  ---(m)-   ----(vol %)-----  (mm/day)      (%)        (%)    -----------------------------------------'
@@ -292,7 +291,7 @@ def _write_crop_calendar_input_file(generate_onset: bool,
 
     return None
 
-def myfun(number_str, pad_before = 6, pad_after = 7):
+def _format_crop_parameter_value(number_str, pad_before = 6, pad_after = 7):
     try:
         whole, frac = number_str.split('.')
     except ValueError:
@@ -307,194 +306,102 @@ def myfun(number_str, pad_before = 6, pad_after = 7):
         number_str = whole + frac
     return number_str
 
-def _get_default_param_dict(crop_name, gdd = True):
-    # TESTING
-    path = os.path.join('data-raw/AquaCropV70No17082022/DATA')
-    filename = os.path.join(path, 'WheatGDD.CRO')
-    with open(filename, 'r', errors = 'replace') as f:
-        contents = f.read().splitlines()
-    # Skip the first line, which is a header
-    contents = contents[1:]
-    params, param_descs = [], []
-    for ln in contents:
-        param = ln.split(None, 1)[0]
-        try:
-            param_desc = ln.split(':')[1].lstrip()
-        except IndexError:
-            param_desc = 'NO DESCRIPTION AVAILABLE'
-        params.append(param)
-        param_descs.append(param_desc)
+class CropParameters:
 
-    param_dict = {i : {'value' : params[i], 'description' : param_descs[i]} for i in range(len(contents))}
-    return param_dict
+    def __init__(self, config):
+        self.config = config
+        # self.crop_name
+    def _load_default_parameter_dict(crop_name, gdd = True):
+        # TESTING
+        path = os.path.join('data-raw/AquaCropV70No17082022/DATA')
+        filename = os.path.join(path, 'WheatGDD.CRO')
+        with open(filename, 'r', errors = 'replace') as f:
+            contents = f.read().splitlines()
+        # Skip the first line, which is a header
+        contents = contents[1:]
+        params, param_descs = [], []
+        for ln in contents:
+            param = ln.split(None, 1)[0]
+            try:
+                param_desc = ln.split(':')[1].lstrip()
+            except IndexError:
+                param_desc = 'NO DESCRIPTION AVAILABLE'
+            params.append(param)
+            param_descs.append(param_desc)
 
-    # We will have to do something about forage crops (?) which require additional info
+        param_dict = {i : [params[i], param_descs[i]] for i in range(len(contents))}
+        return param_dict
 
-def _write_crop_parameter_input_file(**kwargs):
-    # See default values in GUI_AC7...
+    def _set_Version(self, value: float) -> str:
+        if value < 7.0:
+            raise ValueError('This program only supports AquaCrop 7.0 and subsequent versions')
+        value = _format_crop_parameter_value("{:0.1f}".format(value))
+        description = 'AquaCrop version'
+        return ' : '.join(value, description)
 
-    header = 'This is a test - put something more meaningful here' + LINESEP
-    # Line 1: AquaCrop version
-    header += myfun("{:0.1f}".format(7.0)) + ' : AquaCrop version'
-    # Line 2: File protected or not
-    # Line 3: Crop subkind [subkind]:
-    #   1 = Vegetative
-    #   2 = Grain
-    #   3 = Tuber
-    #   4 = Forage
-    # Line 4: Type of planting [Planting]
-    #   1 = Plant seed [DEFAULT]
-    #   0 = Transplant
-    #   -9 = Regrowth
-    # Line 5: Mode [ModeCycle]
-    #   0 = GDDays
-    #   Otherwise CalendarDays
-    # Line 6: Adjustment p to ETo [pMethod]
-    #   0 = No correction
-    #   1 = FAO correction
-    # Line 7: Temperature controlling crop development [Tbase]
-    # Line 8: [as above] [Tupper]
-    # Line 9: GDD days to harvest [GDDaysToHarvest] [NB identical to Maturity]
-    # Line 10-19: Water stress
-    # Line 10: pLeafDefUL
-    # Line 11: pLeafDefLL
-    # Line 12: KsShapeFactorLeaf
-    # Line 13: pdef
-    # Line 14: KsShapeFactorStomata
-    # Line 15: pSenescence
-    # Line 16: KsShapeFactorSenescence
-    # Line 17: SumEToDelaySenescence
-    # Line 18: pPollination
-    # Line 19: AnaeroPoint
-    # Line 20-24: soil fertility/salinity stress
-    # Line 20: StressResponseStress [Soil fertility stress at calibration (%)]
-    # Line 21: StressResponse_ShapeCGC [Shape factor for the response of Canopy Growth Coefficient to soil fertility/salinity stress]
-    # Line 22: StressResponse_ShapeCCX [Shape factor for the response of Maximum Canopy Cover to soil fertility/salinity stress]
-    # Line 23: ShapeWP [Shape factor for the response of Crop Water Producitity to soil fertility stress]
-    # Line 24: ShapeCDecline [Shape factor for the response of Decline of Canopy Cover to soil fertility/salinity stress]
-    # Line 24: NO LONGER VALID Shape factor for the response of Stomatal Closure to soil salinity stress
-    # Line 25: ECemin upper threshold ECe
-    # Line 26: ECemax lower threhsold ECe
-    # Line 27: NO LONGER VALID (?) shape factor of the Ks(salinity) - soil saturation extract (ECe) relationship
-    # Line 28: CCsaltDistortion
-    # Line 29: ResponseECsw
-    #
-    # ! evapotranspiration
-    # KcTop
-    # KcDecline
-    # RootMin
-    # RootMax
-    # RootShape
-    # SmaxTopQuarter
-    # SmaxBotQuarter
-    # SmaxTop_temp = GetCrop_SmaxTop()
-    # SmaxBot_temp = GetCrop_SmaxBot()
-    # call DeriveSmaxTopBottom(GetCrop_SmaxTopQuarter(), &
-    #                          GetCrop_SmaxBotQuarter(), &
-    #                          Crop_SmaxTop_temp, Crop_SmaxBot_temp)
-    # call SetCrop_SmaxTop(Crop_SmaxTop_temp)
-    # call SetCrop_SmaxBot(Crop_SmaxBot_temp)
-    # CCEffectEvapLate
+    def _set_FileProtected(self, value: bool = True) -> str:
+        value = _format_crop_parameter_value("{:0d}".format(value))
+        description = 'File not protected'
+        return ' : '.join(value, description)
 
-    # ! crop development
-    # SizeSeedling(TempDouble)
-    # SizePlant [Canopy size of individual plant (re-growth) at 1st day (cm2)]
-    # PlantingDens
-    # call SetCrop_CCo((GetCrop_PlantingDens()/10000._dp) &
-    #                     * (GetCrop_SizeSeedling()/10000._dp))
-    # call SetCrop_CCini((GetCrop_PlantingDens()/10000._dp) &
-    #                     * (GetCrop_SizePlant()/10000._dp))
-    # CGC
-    # YearCCx [Number of years at which CCx declines to 90% of its value due to self-thinning - for perennials]
-    # CCxRoot [Shape factor of the decline of CCx over the years due to self-thinning for perennials]
-    # read(fhandle, *)
+    def _set_subkind(self, value: int) -> str:
+        if not value in [1, 2, 3, 4]:
+            raise ValueError('Invalid crop subkind.')
+        subkinds = ['leafy vegetable crop', 'fruit/grain producing crop', 'root/tuber crop', 'forage_crop']
+        description = subkinds[value - 1]
+        value = _format_crop_parameter_value("{:0d}".format(value))
+        return ' : '.join(value, description)
 
-    # CCx(TempDouble)
-    # CDC(TempDouble)
-    # DaysToGermination(TempInt)
-    # DaysToMaxRooting(TempInt)
-    # DaysToSenescence(TempInt)
-    # DaysToHarvest
-    # DaysToFlowering
-    # LengthFlowering
-    # ! -----  UPDATE crop development for Version 3.1
-    # ! leafy vegetable crop has an Harvest Index which builds up starting from sowing
-    # if ((GetCrop_subkind() == subkind_Vegetative) &
-    #         .or. (GetCrop_subkind() == subkind_Forage)) then
-    #     call SetCrop_DaysToFlowering(0)
-    #     call SetCrop_LengthFlowering(0)
-    # end if
+    PLANT_SEED = 0
+    PLANT_TRANSPLANT = 1
+    def _set_Planting(value: int) -> str:
+        pass
+        # if value == PLANT_SEED:
 
-    # ! Crop.DeterminancyLinked
-    # read(fhandle, *) XX
-    # select case (XX)
-    #     case(1)
-    #         call SetCrop_DeterminancyLinked(.true.)
-    #     case default
-    #         call SetCrop_DeterminancyLinked(.false.)
-    # end select
+        # if (GetCrop_Planting() == plant_Seed) then
+        #     i = 1
+        #     if (GetCrop_subkind() == subkind_Forage) then
+        #         write(fhandle, '(i6,a)') i, '         : Crop is sown in 1st year'
+        #     else
+        #         write(fhandle, '(i6,a)') i, '         : Crop is sown'
+        #     end if
+        # else
+        #     if (GetCrop_Planting() == plant_Transplant) then
+        #         i = 0
+        #         if (GetCrop_subkind() == subkind_Forage) then
+        #             write(fhandle, '(i6,a)') i, &
+        #                                 '         : Crop is transplanted in 1st year'
+        #         else
+        #             write(fhandle, '(i6,a)') i, &
+        #                                 '         : Crop is transplanted'
+        #         end if
+        #     else
+        #         i = -9
+        #         write(fhandle, '(i6,a)') i, &
+        #                                 '         : Crop is regrowth'
+        #     end if
+        # end if
 
-    # ! Potential excess of fruits (%) and building up HI
-    # if ((GetCrop_subkind() == subkind_Vegetative) &
-    #         .or. (GetCrop_subkind() == subkind_Forage)) then
-    #     read(fhandle, *)  ! PercCycle no longer considered
-    #     call SetCrop_fExcess(int(undef_int, kind=int16))
-    # else
-    #     read(fhandle, *) TempInt
-    #     call SetCrop_fExcess(int(TempInt, kind=int16))
-    # end if
-    # DaysToHIo
+    def _set_ModeCycle(value):
+        pass
 
-    # ! yield response to water
-    # WP
-    # WPy
-    # ! adaptation to elevated CO2 (Version 3.2 and higher)
-    # AdaptedToCO2
-    # HI
-    # HIincrease [possible increase (%) of HI due to water stress before flowering]
-    # aCoeff(TempDouble) [coefficient describing impact of restricted vegetative growth at flowering on HI]
-    # bCoeff [coefficient describing impact of stomatal closure at flowering on HI]
-    # DHImax [allowable maximum increase (%) specified HI]
-
-    # ! growing degree days
-    # GDDaysToGermination(TempInt)
-    # GDDaysToMaxRooting(TempInt)
-    # GDDaysToSenescence(TempInt)
-    # GDDaysToHarvest(TempInt)
-    # GDDaysToFlowering(TempInt)
-    # GDDLengthFlowering(TempInt)
-    # GDDCGC(TempDouble)
-    # GDDCDC(TempDouble)
-    # GDDaysToHIo(TempInt)
-
-    # DryMatter [dry matter content (%) of fresh yield]
-    # RootMinYear1(TempDouble) [Minimum rooting depth in first year in meter (for regrowth)]
-    # SownYear1 [crop is sown OR crop is transplanted in first year (for perennials)]
-    # Assimilates_On [transfer of assimilates from above ground pars to root system is/is not considered]
-    # Assimilates_Period Number of days at end of season during which assimilates are stored in root system
-    # Assimilates_Stored Percentage of assimilates transferred to root system at last day of season
-    # Assimilates_Mobilized Percentage of stored assimilates, transferred to above ground parts in next season
-
-    # if (GetCrop_subkind() == subkind_Forage) then
-    # ! data for the determination of the growing period [Only if subkind == Forage]
-    # GenerateOnset [onset is fixed on a specific day or driven by an air temperature criterion]
-    # OnsetCriterion [12: mean air temperature; 13: growing degree days]
-    # OnsetFirstDay(perenperiod_onsetFD_temp)
-    # OnsetFirstMonth(perenperiod_onsetFM_temp)
-    # OnsetLengthSearchPeriod(perenperiod_onsetLSP_temp)
-    # OnsetThresholdValue(perenperiod_onsetTV_temp)
-    # OnsetPeriodValue(perenperiod_onsetPV_temp)
-    # OnsetOccurrence(perenperiod_onsetOcc_temp)
-    # GenerateEnd ! end is fixed on a specific day or generated by an air temperature criterion
-    # EndCriterion [62: mean air temperature; 63: growing degree days]
-    # EndLastDay(perenperiod_endLD_temp)
-    # EndLastMonth(perenperiod_endLM_temp)
-    # ExtraYears(perenperiod_extrayears_temp)
-    # EndLengthSearchPeriod(perenperiod_endLSP_temp)
-    # EndThresholdValue(perenperiod_endTV_temp)
-    # EndPeriodValue(perenperiod_endPV_temp)
-    # EndOccurrence(perenperiod_endOcc_temp)
-
+    def _write_crop_parameter_input_file(**kwargs):
+        # See default values in GUI_AC7...
+        # Note that in the Fortran statement:
+        #
+        # read(fhandle, *) Variable
+        #
+        # the asterisk means list-directed input. On input, lines are converted
+        # to lists (separated by blanks) and then assigned to the variables
+        # following the read(...) statement (in this case Variable). If only one
+        # variable is provided then only the first list element is read.
+        #
+        # * Thus, in the AquaCrop program the parameter descriptions are not read*
+        #
+        # https://docs.oracle.com/cd/E19957-01/805-4939/6j4m0vnc5/index.html
+        #
+        # header = 'This is a test - put something more meaningful here' + LINESEP
+        pass
 
 sub_dir = 'INPUT'
 try:
