@@ -12,13 +12,16 @@ from importlib_resources import path
 # from . import data
 # import aquacrop_fc
 
+
 class Soil:
     def __init__(self, model):
         self.model = model
         # NOT CURRENTLY IMPLEMENTED:
         # self.model.adjustReadilyAvailableWater = \
         #     self.model.config.SOIL_PARAMETERS['adjustReadilyAvailableWater']
-        self.model.adjustCurveNumber = self.model.config.SOIL_PARAMETERS['adjustCurveNumber']
+        self.model.adjustCurveNumber = self.model.config.SOIL_PARAMETERS[
+            "adjustCurveNumber"
+        ]
         self.load_soil_parameter_database()
 
     # def initial(self):
@@ -43,7 +46,7 @@ class Soil:
     #     )
 
     def load_soil_parameter_database(self):
-        with path(data, 'soil_parameter_database.sqlite3') as db_path:
+        with path(data, "soil_parameter_database.sqlite3") as db_path:
             try:
                 db_path = db_path.resolve()
             except FileNotFoundError:
@@ -52,9 +55,18 @@ class Soil:
 
     def read_soil_parameters(self):
         soil_parameters = [
-            'EvapZsurf', 'EvapZmin', 'EvapZmax', 'Kex',
-            'fevap', 'fWrelExp', 'fwcc',
-            'CN', 'zCN', 'zGerm', 'zRes', 'fshape_cr'
+            "EvapZsurf",
+            "EvapZmin",
+            "EvapZmax",
+            "Kex",
+            "fevap",
+            "fWrelExp",
+            "fwcc",
+            "CN",
+            "zCN",
+            "zGerm",
+            "zRes",
+            "fshape_cr",
         ]
         for param in soil_parameters:
             # First try to get parameter from config

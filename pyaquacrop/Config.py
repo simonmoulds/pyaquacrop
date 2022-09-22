@@ -4,6 +4,7 @@
 # from hm.config import Configuration
 import warnings
 import logging
+
 logger = logging.getLogger(__name__)
 
 # VALID_NONE_VALUES = ['None', 'NONE', 'none', '']
@@ -19,12 +20,12 @@ logger = logging.getLogger(__name__)
 
 class Config:
     def __init__(
-            self,
-            config_filename,
-            output_directory,
-            debug_mode=False,
-            system_arguments=None,
-            **kwargs
+        self,
+        config_filename,
+        output_directory,
+        debug_mode=False,
+        system_arguments=None,
+        **kwargs
     ):
         # self.deterministic = kwargs.get('deterministic', False)
         # self.montecarlo = kwargs.get('montecarlo', False)
