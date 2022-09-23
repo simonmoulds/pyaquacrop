@@ -128,7 +128,10 @@ class CropParameters:
 
     def _write_Tupper(self) -> str:
         value = _format_crop_parameter(":0.1f".format(self.Tupper))
-        description = "Upper temperature (degC) above which crop development no longer increases with an increase in temperature"
+        description = (
+            "Upper temperature (degC) above which crop development no longer increases"
+            " with an increase in temperature"
+        )
         return " : ".join(value, description)
 
     def _set_GDDaysToHarvest(self, value):
@@ -143,8 +146,84 @@ class CropParameters:
         self.pLeafDefUL = value
 
     def _write_pLeafDefUL(self) -> str:
-        value = _format_crop_paramter(":0.2f".format(self.pLeafDefUL))
+        value = _format_crop_parameter(":0.2f".format(self.pLeafDefUL))
         description = (
             "Soil water depletion factor for canopy expansion (p-exp) - Upper threshold"
         )
         return " : ".join(value, description)
+
+    def _set_KsShapeFactor(self, value: float):
+        self.KsShapeFactor = value
+
+    def _write_KsShapeFactor(self) -> str:
+        value = _format_crop_parameter(":0.2f".format(self.KsShapeFactor))
+        description = "Shape factor for water stress coefficient for canopy expansion (0.0 = straight line)"
+        return " : ".join(value, description)
+
+    def _set_pdef(self, value: float):
+        self.pdef = value
+
+    def _write_pdef(self) -> str:
+        value = _format_crop_parameter(":0.1f".format(self.pdef))
+        description = "Soil water depletion fraction for stomatal control (p - sto) - Upper threshold"
+        return " : ".join(value, description)
+
+    def _set_KsShapeFactorStomata(self, value: float):
+        self.KsShapeFactorStomata = value
+
+    def _write_KsShapeFactorStomata(self) -> str:
+        value = _format_crop_parameter(":0.2f".format(self.KsShapeFactorStomata))
+
+# import math
+
+# class Parameter:
+#     def __init__(self)
+#         pass
+
+# class CropParameter:
+#     def __init__(self, crop_type):
+#         _check_valid_crop_type(...)
+#         self.name = None
+#         self.description = None
+#         self.valid_range = [-math.inf, math.inf]
+#         self.str_format = None
+
+#     def _set_crop_type(self, crop_type):
+#         if _check_valid_crop(crop_type):
+#             self.crop_type = crop_type
+#         else:
+#             raise ValueError()
+
+#     def _check_valid_crop(self, crop_type):
+#         return True
+
+#     def _get_default_value(self):
+#         raise NotImplementedError
+
+#     @property
+#     def description(self):
+#         return self.description
+
+#     @property
+#     def valid_range(self):
+#         return self.valid_range
+
+#     @property
+#     def str_format(self):
+#         return self.str_format()
+
+# class KsShapeFactor(Parameter):
+#     def __init__(self, crop_type):
+#         super(KsShapeFactor, self).__init__(crop_type=crop_type)
+#         self.name = "KsShapeFactor"
+#         self.description = (
+#             "Shape factor for water stress coefficient for canopy expansion (0.0 = straight line)"
+#         )
+#         self.valid_range = [0, 1]
+#         self.str_format = "{0.1f}"
+
+#     def _set_value(self, value):
+#         if value >= self.valid_range[0] and value <= self.valid_range[1]:
+#             self.value = value
+#         else:
+#             raise ValueError("Out of range")
