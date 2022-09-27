@@ -61,10 +61,11 @@ class _CropParameter(Parameter):
                  name: str,
                  datatype: type,
                  discrete: bool,
-                 valid_range: list,
-                 description: Union[dict, str],
+                 valid_range: tuple,
+                 description: Union[dict, tuple, str],
                  depends_on: Optional[str] = None,
-                 scale: Optional[int] = 2):
+                 scale: Optional[int] = 2,
+                 required: bool = True):
 
         self.value = None
         self.name = name
@@ -74,6 +75,7 @@ class _CropParameter(Parameter):
         self.description = description
         self.depends_on = depends_on
         self.scale = scale
+        self.required = optional
 
     def set_value(self, value):
         self.value = value
@@ -105,15 +107,17 @@ class _DiscreteCropParameter(_CropParameter):
     def __init__(self,
                  name: str,
                  description: dict,
-                 depends_on: Optional[str] = None):
+                 depends_on: Optional[str] = None,
+                 required: bool = True):
 
         super(_DiscreteCropParameter, self).__init__(
             name = name,
             datatype = int,
             discrete = True,
-            valid_range = [int(key) for key in description.keys()],
+            valid_range = (int(key) for key in description.keys()),
             description = description
             depends_on = depends_on
+            required = required
         )
 
 class _ContinuousCropParameter(_CropParameter):
@@ -121,7 +125,27 @@ class _ContinuousCropParameter(_CropParameter):
                  name: str,
                  datatype: type,
                  valid_range: list,
-                 description: dict,
+                 description: Union[str, tuple],
+                 scale: Optional[int] = 2,
+                 required = True):
+
+        super(_ContinuousCropParameter, self).__init__(
+            name = name,
+            datatype = datatype,
+            discrete = False,
+            valid_range = valid_range,
+            description = description,
+            depends_on = None,
+            scale = scale,
+            required = required
+        )
+
+class _OptionalContinuousCropParameter(_CropParameter):
+    def __init__(self,
+                 name: str,
+                 datatype: type,
+                 valid_range: list,
+                 description: Union[str, tuple],
                  scale: Optional[int] = 2):
 
         super(_ContinuousCropParameter, self).__init__(
@@ -131,9 +155,9 @@ class _ContinuousCropParameter(_CropParameter):
             valid_range = valid_range,
             description = description,
             depends_on = None,
-            scale = scale
+            scale = scale,
+            required = False
         )
-
 # The idea here is to have a dictionary of all crop parameters which can then be organised properly in a CropParameterDict class
 
 CROP_PARAMETER_DICT = {
@@ -243,207 +267,160 @@ CROP_PARAMETER_DICT = {
         valid_range = [-math.inf, math.inf],
         description = "Sum(ETo) during dormant period to be exceeded before crop is permanently wilted"
     },
-    "pPollination" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Soil water depletion factor for pollination (p - pol) - Upper threshold",
-        "format" : "{:0.2f}"
+    "pPollination" : _ContinuousCropParameter(
+        name = "pPollination",
+        datatype = float,
+        valid_range = [-math.inf, math.inf],
+        description = "Soil water depletion factor for pollination (p - pol) - Upper threshold",
+        scale = 2
     },
-    "AnaeroPoint" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Vol% for Anaerobiotic point (* (SAT - [vol%]) at which deficient aeration occurs *)",
-        "format" : "{:0d}"
-    },
-    "Stress" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Considered soil fertility stress for calibration of stress response (%)",
-        "format" : "{:0d}"
-    },
-    "ShapeCGC" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "required" : False,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
+    "AnaeroPoint" : _ContinuousCropParameter(
+        name = "AnaeroPoint",
+        datatype = int,
+        valid_range = [-math.inf, math.inf],
+        description = "Vol% for Anaerobiotic point (* (SAT - [vol%]) at which deficient aeration occurs *)"
+    ),
+    "Stress" : _ContinuousCropParameter(
+        name = "Stress",
+        datatype = int,
+        valid_range = [-math.inf, math.inf],
+        description = "Considered soil fertility stress for calibration of stress response (%)"
+    ),
+    "ShapeCGC" : _ContinuousCropParameter(
+        name = "ShapeCGC",
+        datatype = float,
+        valid_range = (-math.inf, math.inf),
+        description = (
             "Shape factor for the response of canopy expansion to soil fertility stress",
             "Response of canopy expansion is not considered"
-        ],
-        "format" : "{:0.2f}"
-    },
-    "ShapeCCX" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "required" : False,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
+        ),
+        scale = 2,
+        required = False
+    ),
+    "ShapeCCX" : _ContinuousCropParameter(
+        name = "ShapeCCX",
+        datatype = float,
+        valid_range = (-math.inf, math.inf),
+        description = (
             "Shape factor for the response of maximum canopy cover to soil fertility stress",
             "Response of maximum canopy cover is not considered"
-        ],
-        "format" : "{:0.2f}"
-    },
-    "ShapeWP" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "required" : False,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
+        ),
+        scale = 2,
+        required = False
+    ),
+    "ShapeWP" : _ContinuousCropParameter(
+        name = "ShapeWP",
+        datatype = float,
+        valid_range = (-math.inf, math.inf),
+        description = (
             "Shape factor for the response of crop Water Productivity to soil fertility stress",
             "Response of crop Water Productivity is not considered"
-        ],
-        "format" : "{:0.2f}"
-    },
-    "ShapeCDecline" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "required" : False,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
+        ),
+        scale = 2,
+        required = False
+    ),
+    "ShapeCDecline" : _ContinuousCropParameter(
+        name = "ShapeCDecline",
+        datatype = float,
+        valid_range = (-math.inf, math.inf),
+        "description" = (
             "Shape factor for the response of decline of canopy cover to soil fertility stress",
             "Response of decline of canopy cover is not considered"
-        ],
-        "format" : "{:0.2f}"
-    },
-    None,
-    "Tcold" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "required" : False,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
+        ),
+        scale = 2,
+        required = False
+    ),
+    "Tcold" : _ContinuousCropParameter(
+        name = "Tcold",
+        datatype = float,
+        valid_range = (-math.inf, math.inf),
+        description = (
             "Minimum air temperature below which pollination starts to fail (cold stress) (degC)",
             "Cold (air temperature) stress affecting pollination - not considered"
-        ],
-        "format" : "{:0d}"
-    },
-    "Theat" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "required" : False,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
+        ),
+        scale = 1,              # FAO version has this as integer
+        required = False
+    ),
+    "Theat" : _ContinuousCropParameter(
+        name = "Theat",
+        datatype = float,
+        valid_range = (-math.inf, math.inf),
+        description = (
             "Maximum air temperature above which pollination starts to fail (heat stress) (degC)",
             "Heat (air temperature) stress affecting pollination - not considered"
-        ],
-        "format" : "{:0d}"
-    },
-    "GDtranspLow" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "required" : False,
-        "valid_range" : [0., math.inf],
-        "description" : [
+        ),
+        scale = 1,              # FAO version has this as integer
+        required = False
+    ),
+    "GDtranspLow" : _ContinuousCropParameter(
+        name = "GDtranspLow",
+        datatype = float,
+        valid_range = (0., math.inf),
+        description = (
             "Minimum growing degrees required for full crop transpiration (degC - day)",
             "Cold (air temperature) stress on crop transpiration not considered"
-        ],
-        "format" : "{:0.1f}"
+        ),
+        scale = 1,
+        required = False
     },
-    "ECemin" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Electrical Conductivity of soil saturation extract at which crop starts to be affected by soil salinity (dS/m)",
-        "format" : "{:0d}"
-    },
-    "ECemax" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Electrical Conductivity of soil saturation extract at which crop can no longer grow (dS/m)",
-        "format" : "{:0d}"
-    },
-    None,
-    "CCsaltDistortion" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [0, 100]
-        "description" : "Calibrated distortion (%) of CC due to salinity stress (Range: 0 (none) to +100 (very strong))",
-        "format" : "{:0d}"
-    },
-    "ResponseECsw" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [0, 200]
-        "description" : "Calibrated response (%) of stomata stress to ECsw (Range: 0 (none) to +200 (extreme))",
-        "format" : "{:0d}"
-    },
-    "KcTop" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Crop coefficient when canopy is complete but prior to senescence (KcTr,x)",
-        "format" : "{:0.2f}"
-    },
-    "KcDecline" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Decline of crop coefficient (%/day) as a result of ageing, nitrogen deficiency, etc.",
-        "format" : "{:0.3f}"
-    },
-    "RootMin" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Minimum effective rooting depth (m)",
-        "format" : "{:0.2f}"
-    },
-    "RootMax" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Maximum effective rooting depth (m)",
-        "format" : "{:0.2f}"
-    },
-    "RootShape" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Shape factor describing root zone expansion",
-        "format" : "{:0d}"
-    },
+    "ECemin" : _ContinuousCropParameter(
+        name = "ECemin",
+        datatype = int,
+        valid_range = (-math.inf, math.inf),
+        description = "Electrical Conductivity of soil saturation extract at which crop starts to be affected by soil salinity (dS/m)",
+    ),
+    "ECemax" : _ContinuousCropParameter(
+        name = "ECemax",
+        datatype = int,
+        valid_range = (-math.inf, math.inf),
+        description = "Electrical Conductivity of soil saturation extract at which crop can no longer grow (dS/m)",
+    ),
+    "CCsaltDistortion" : _ContinuousCropParameter(
+        name = "CCsaltDistortion",
+        datatype = int,
+        valid_range = (0, 100),
+        description = "Calibrated distortion (%) of CC due to salinity stress (Range: 0 (none) to +100 (very strong))"
+    ),
+    "ResponseECsw" : _ContinuousCropParameter(
+        name = "ResponseECsw",
+        datatype = int,
+        valid_range = (0, 200),
+        description = "Calibrated response (%) of stomata stress to ECsw (Range: 0 (none) to +200 (extreme))"
+    ),
+    "KcTop" : _ContinuousCropParameter(
+        name = "KcTop",
+        datatype = float,
+        valid_range = (-math.inf, math.inf),
+        description = "Crop coefficient when canopy is complete but prior to senescence (KcTr,x)",
+        shape = 2
+    ),
+    "KcDecline" : _ContinuousCropParameter(
+        name = "KcDecline",
+        datatype = float,
+        valid_range = (-math.inf, math.inf),
+        description = "Decline of crop coefficient (%/day) as a result of ageing, nitrogen deficiency, etc.",
+        shape = 3
+    ),
+    "RootMin" : _ContinuousCropParameter(
+        name = "RootMin",
+        datatype = float,
+        valid_range = (-math.inf, math.inf),
+        description = "Minimum effective rooting depth (m)",
+        shape = 2
+    ),
+    "RootMax" : _ContinuousCropParameter(
+        name = "RootMax",
+        datatype = float,
+        valid_range : (-math.inf, math.inf),
+        description = "Maximum effective rooting depth (m)",
+        scale = 2
+    ),
+    "RootShape" : _ContinuousCropParameter(
+        name = "RootShape",
+        datatype = int,
+        valid_range = (-math.inf, math.inf),
+        description = "Shape factor describing root zone expansion"
+    ),
     "SmaxTopQuarter" : {
         "datatype" : float,
         "discrete" : False,
