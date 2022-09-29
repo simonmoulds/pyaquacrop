@@ -36,6 +36,10 @@ class Parameter(ABC):
     def set_value(self):
         pass
 
+    @abstractmethod
+    def check_value(self):
+        pass
+
     @abstractproperty
     def name(self):
         pass
@@ -65,7 +69,8 @@ class _CropParameter(Parameter):
                  description: Union[dict, tuple, str],
                  depends_on: Optional[str] = None,
                  scale: Optional[int] = 2,
-                 required: bool = True):
+                 required: bool = True,
+                 missing_value: int = -9):
 
         self.value = None
         self.name = name
@@ -78,18 +83,12 @@ class _CropParameter(Parameter):
         self.required = optional
 
     def set_value(self, value):
+        self.check_value(value)
         self.value = value
 
     @property
     def name(self):
-        pass
-
-    @property
-    def description(self, **kwargs):
-        if discrete:
-            return self.description[self.value]
-        else:
-            return self.description
+        return self.name
 
     @property
     def default_value(self):
@@ -101,14 +100,20 @@ class _CropParameter(Parameter):
 
     @property
     def str_format(self):
-        pass
+        if self.datatype is int:
+            fmt = f"{self.value:d}"
+        else:
+            fmt = f"{self.value:.{self.scale}f}"
+        num = _format_crop_parameter()
+        return num + ' : ' + self.description
 
 class _DiscreteCropParameter(_CropParameter):
     def __init__(self,
                  name: str,
                  description: dict,
                  depends_on: Optional[str] = None,
-                 required: bool = True):
+                 required: bool = True,
+                 missing_value: Optional[int] = -9):
 
         super(_DiscreteCropParameter, self).__init__(
             name = name,
@@ -117,8 +122,15 @@ class _DiscreteCropParameter(_CropParameter):
             valid_range = (int(key) for key in description.keys()),
             description = description,
             depends_on = depends_on,
-            required = required
+            scale = None,
+            required = required,
+            missing_value = missing_value
         )
+
+    def check_value(self, value):
+        if not value in self.valid_range:
+            raise ValueError
+
 
 class _ContinuousCropParameter(_CropParameter):
     def __init__(self,
@@ -126,8 +138,10 @@ class _ContinuousCropParameter(_CropParameter):
                  datatype: type,
                  valid_range: list,
                  description: Union[str, tuple],
+                 depends_on: Optional[str] = None,
                  scale: Optional[int] = 2,
-                 required = True):
+                 required: bool = True,
+                 missing_value: Optional[int] = -9):
 
         super(_ContinuousCropParameter, self).__init__(
             name = name,
@@ -135,31 +149,19 @@ class _ContinuousCropParameter(_CropParameter):
             discrete = False,
             valid_range = valid_range,
             description = description,
-            depends_on = None,
+            depends_on = depends_on,
             scale = scale,
-            required = required
+            required = required,
+            missing_value = missing_value
         )
 
-class _OptionalContinuousCropParameter(_CropParameter):
-    def __init__(self,
-                 name: str,
-                 datatype: type,
-                 valid_range: list,
-                 description: Union[str, tuple],
-                 scale: Optional[int] = 2):
+    def check_value(self, value):
+        if (value < self.valid_range[0]) | (value > self.valid_range[1]):
+            raise ValueError
+        return True
 
-        super(_ContinuousCropParameter, self).__init__(
-            name = name,
-            datatype = datatype,
-            discrete = False,
-            valid_range = valid_range,
-            description = description,
-            depends_on = None,
-            scale = scale,
-            required = False
-        )
+
 # The idea here is to have a dictionary of all crop parameters which can then be organised properly in a CropParameterDict class
-
 CROP_PARAMETER_DICT = {
 
     # ################################# #
