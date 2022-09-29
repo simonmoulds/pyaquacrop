@@ -115,8 +115,8 @@ class _DiscreteCropParameter(_CropParameter):
             datatype = int,
             discrete = True,
             valid_range = (int(key) for key in description.keys()),
-            description = description
-            depends_on = depends_on
+            description = description,
+            depends_on = depends_on,
             required = required
         )
 
@@ -161,6 +161,10 @@ class _OptionalContinuousCropParameter(_CropParameter):
 # The idea here is to have a dictionary of all crop parameters which can then be organised properly in a CropParameterDict class
 
 CROP_PARAMETER_DICT = {
+
+    # ################################# #
+    # Crop type                         #
+    # ################################# #
     "subkind" : _DiscreteCropParameter(
         name = "subkind",
         description = {
@@ -170,14 +174,28 @@ CROP_PARAMETER_DICT = {
             4: "forage_crop"
         }
     ),
+    # ################################# #
+    # Sown, transplanting or regrowth   #
+    # ################################# #
     "Planting" : _DiscreteCropParameter(
         name = "Planting",
         description = {
-            0: "Crop is sown",
-            1: "Crop is transplanted",
-            -9: "Crop is regrowth"
+            "default" : {
+                0: "Crop is sown",
+                1: "Crop is transplanted",
+                -9: "Crop is regrowth"
+            },
+            4: {
+                0: "Crop is sown in first year",
+                1: "Crop is transplanted in first year",
+                -9: "Crop is regrowth"
+            },
         },
+        depends_on = "Planting"
     ),
+    # ################################# #
+    # Mode (description crop cycle)     #
+    # ################################# #
     "ModeCycle" : _DiscreteCropParameter(
         name = "ModeCycle",
         description = {
@@ -185,6 +203,9 @@ CROP_PARAMETER_DICT = {
             1 : "Determination of crop cycle: by calendar days"
         }
     ),
+    # ################################# #
+    # p correction for ET               #
+    # ################################# #
     "pMethod" : _DiscreteCropParameter(
         name = "pMethod",
         description = {
@@ -192,94 +213,114 @@ CROP_PARAMETER_DICT = {
             1: "Soil water depletion factors (p) are adjusted by ETo",
         }
     ),
+    # ################################# #
+    # temperatures controlling crop     #
+    # development                       #
+    # ################################# #
     "Tbase" : _ContinuousCropParameter(
         name = "Tbase",
         datatype = float,
         valid_range = [-math.inf, math.inf],
         description = "Base temperature (degC) below which crop development does not progress",
-        scale = 2
+        scale = 1
     ),
     "Tupper" : _ContinuousCropParameter(
         name = "Tupper",
         datatype = float,
         valid_range = [-math.inf, math.inf],
         description =  "Upper temperature (degC) above which crop development no longer increases with an increase in temperature",
-        scale = 2
-    },
-    "GDDaysToHarvest"  = _ContinuousCropParameter(
+        scale = 1
+    ),
+    # ################################# #
+    # required growing degree days to   #
+    # complete the crop cycle (is       #
+    # identical as to maturity)         #
+    # ################################# #
+    "GDDaysToHarvest": _ContinuousCropParameter(
         name = "GDDaysToHarvest",
         datatype = int,
         valid_range = [-math.inf, math.inf],
         description = "Total length of crop cycle in growing degree-days"
-    },
-    "pLeafDefUL" = _ContinuousCropParameter(
+    ),
+    # ################################# #
+    # water stress                      #
+    # ################################# #
+    "pLeafDefUL": _ContinuousCropParameter(
         name = "pLeafDefUL",
         datatype = float,
         valid_range = [-math.inf, math.inf],
         description = "Soil water depletion factor for canopy expansion (p-exp) - Upper threshold",
         scale = 2
     ),
-    "pLeafDefLL" : _ContinuousCropParameter(
+    "pLeafDefLL": _ContinuousCropParameter(
         name = "pLeafDefLL",
         datatype = float,
         valid_range = [-math.inf, math.inf],
         description = "Soil water depletion factor for canopy expansion (p-exp) - Lower threshold",
         scale = 2
-    },
-    "KsShapeFactorLeaf" : _ContinuousCropParameter(
+    ),
+    "KsShapeFactorLeaf": _ContinuousCropParameter(
         name = "KsShapeFactorLeaf",
         datatype = float,
         valid_range = [-math.inf, math.inf],
         description = "Shape factor for water stress coefficient for canopy expansion (0.0 = straight line)",
         scale = 1
-    },
+    ),
     "pdef" : _ContinuousCropParameter(
         name = "pdef",
         datatype = float,
         valid_range = [-math.inf, math.inf],
         description = "Soil water depletion fraction for stomatal control (p - sto) - Upper threshold",
         scale = 2
-    },
+    ),
     "KsShapeFactorStomata" : _ContinuousCropParameter(
-        name = "KsShapeFactorStomata"
+        name = "KsShapeFactorStomata",
         datatype = float,
         valid_range = [-math.inf, math.inf],
         description = "Shape factor for water stress coefficient for stomatal control (0.0 = straight line)",
         scale = 1
-    },
+    ),
     "pSenescence" : _ContinuousCropParameter(
         name = "pSenescence",
         datatype = float,
         valid_range = [-math.inf, math.inf],
         description = "Soil water depletion factor for canopy senescence (p - sen) - Upper threshold",
         scale = 2
-    },
+    ),
     "KsShapeFactorSenescence" : _ContinuousCropParameter(
         name = "KsShapeFactorSenescence",
         datatype = float,
         valid_range = [-math.inf, math.inf],
         description = "Shape factor for water stress coefficient for canopy senescence (0.0 = straight line)",
         scale = 1
-    },
+    ),
     "SumEToDelaySenescence" : _ContinuousCropParameter(
         name = "SumEToDelaySenescence",
         datatype = int,
         valid_range = [-math.inf, math.inf],
         description = "Sum(ETo) during dormant period to be exceeded before crop is permanently wilted"
-    },
+    ),
     "pPollination" : _ContinuousCropParameter(
         name = "pPollination",
         datatype = float,
         valid_range = [-math.inf, math.inf],
-        description = "Soil water depletion factor for pollination (p - pol) - Upper threshold",
-        scale = 2
-    },
+        description = (
+            "Soil water depletion factor for pollination (p - pol) - Upper threshold",
+            "Soil water depletion factor for pollination - Not Applicable"
+        ),
+        scale = 2,
+        required = False,
+        missing_value = -9
+    ),
     "AnaeroPoint" : _ContinuousCropParameter(
         name = "AnaeroPoint",
         datatype = int,
         valid_range = [-math.inf, math.inf],
         description = "Vol% for Anaerobiotic point (* (SAT - [vol%]) at which deficient aeration occurs *)"
     ),
+    # ################################# #
+    # stress response                   #
+    # ################################# #
     "Stress" : _ContinuousCropParameter(
         name = "Stress",
         datatype = int,
@@ -289,7 +330,7 @@ CROP_PARAMETER_DICT = {
     "ShapeCGC" : _ContinuousCropParameter(
         name = "ShapeCGC",
         datatype = float,
-        valid_range = (-math.inf, math.inf),
+        valid_range = (-math.inf, 24.9),
         description = (
             "Shape factor for the response of canopy expansion to soil fertility stress",
             "Response of canopy expansion is not considered"
@@ -300,7 +341,7 @@ CROP_PARAMETER_DICT = {
     "ShapeCCX" : _ContinuousCropParameter(
         name = "ShapeCCX",
         datatype = float,
-        valid_range = (-math.inf, math.inf),
+        valid_range = (-math.inf, 24.9),
         description = (
             "Shape factor for the response of maximum canopy cover to soil fertility stress",
             "Response of maximum canopy cover is not considered"
@@ -311,7 +352,7 @@ CROP_PARAMETER_DICT = {
     "ShapeWP" : _ContinuousCropParameter(
         name = "ShapeWP",
         datatype = float,
-        valid_range = (-math.inf, math.inf),
+        valid_range = (-math.inf, 24.9),
         description = (
             "Shape factor for the response of crop Water Productivity to soil fertility stress",
             "Response of crop Water Productivity is not considered"
@@ -322,47 +363,54 @@ CROP_PARAMETER_DICT = {
     "ShapeCDecline" : _ContinuousCropParameter(
         name = "ShapeCDecline",
         datatype = float,
-        valid_range = (-math.inf, math.inf),
-        "description" = (
+        valid_range = (-math.inf, 24.9),
+        description = (
             "Shape factor for the response of decline of canopy cover to soil fertility stress",
             "Response of decline of canopy cover is not considered"
         ),
         scale = 2,
         required = False
     ),
+    # ################################# #
+    # temperature stress                #
+    # ################################# #
     "Tcold" : _ContinuousCropParameter(
         name = "Tcold",
-        datatype = float,
+        datatype = int,
         valid_range = (-math.inf, math.inf),
         description = (
             "Minimum air temperature below which pollination starts to fail (cold stress) (degC)",
             "Cold (air temperature) stress affecting pollination - not considered"
         ),
-        scale = 1,              # FAO version has this as integer
-        required = False
+        required = False,
+        missing_value = -9
     ),
     "Theat" : _ContinuousCropParameter(
         name = "Theat",
-        datatype = float,
+        datatype = int,
         valid_range = (-math.inf, math.inf),
         description = (
             "Maximum air temperature above which pollination starts to fail (heat stress) (degC)",
             "Heat (air temperature) stress affecting pollination - not considered"
         ),
-        scale = 1,              # FAO version has this as integer
-        required = False
+        required = False,
+        missing_value = -9
     ),
     "GDtranspLow" : _ContinuousCropParameter(
         name = "GDtranspLow",
         datatype = float,
-        valid_range = (0., math.inf),
+        valid_range = (-math.inf, math.inf),
         description = (
             "Minimum growing degrees required for full crop transpiration (degC - day)",
             "Cold (air temperature) stress on crop transpiration not considered"
         ),
         scale = 1,
-        required = False
-    },
+        required = False,
+        missing_value = -9
+    ),
+    # ################################# #
+    # Salinity stress                   #
+    # ################################# #
     "ECemin" : _ContinuousCropParameter(
         name = "ECemin",
         datatype = int,
@@ -374,7 +422,7 @@ CROP_PARAMETER_DICT = {
         datatype = int,
         valid_range = (-math.inf, math.inf),
         description = "Electrical Conductivity of soil saturation extract at which crop can no longer grow (dS/m)",
-    ),
+    ),                          # GOT UP TO HERE!!!
     "CCsaltDistortion" : _ContinuousCropParameter(
         name = "CCsaltDistortion",
         datatype = int,
@@ -394,6 +442,9 @@ CROP_PARAMETER_DICT = {
         description = "Crop coefficient when canopy is complete but prior to senescence (KcTr,x)",
         shape = 2
     ),
+    # ################################# #
+    # Evapotranspiration                #
+    # ################################# #
     "KcDecline" : _ContinuousCropParameter(
         name = "KcDecline",
         datatype = float,
@@ -411,7 +462,7 @@ CROP_PARAMETER_DICT = {
     "RootMax" : _ContinuousCropParameter(
         name = "RootMax",
         datatype = float,
-        valid_range : (-math.inf, math.inf),
+        valid_range = (0, math.inf),
         description = "Maximum effective rooting depth (m)",
         scale = 2
     ),
@@ -421,1120 +472,510 @@ CROP_PARAMETER_DICT = {
         valid_range = (-math.inf, math.inf),
         description = "Shape factor describing root zone expansion"
     ),
-    "SmaxTopQuarter" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Maximum root water extraction (m3water/m3soil.day) in top quarter of root zone",
-        "format" : "{:0.3f}"
-    },
-    "SmaxBotQuarter" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Maximum root water extraction (m3water/m3soil.day) in bottom quarter of root zone",
-        "format" : "{:0.3f}"
-    },
-    "CCEffectEvapLate" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Effect of canopy cover in reducing soil evaporation in late season stage",
-        "format" : "{:0d}"
-    },
-    "SizeSeedling" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Soil surface covered by an individual seedling at 90 % emergence (cm2)",
-        "format" : "{:0.2f}"
-    },
-    "SizePlant" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Canopy size of individual plant (re-growth) at 1st day (cm2)",
-        "format" : "{:0.2f}"
-    },
-    "PlantingDens" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Number of plants per hectare",
-        "format" : "{:0d}"
-    },
-    "CGC" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Canopy growth coefficient (CGC): Increase in canopy cover (fraction soil cover per day)",
-        "format" : "{:0.5f}"
-    },
-    "YearCCx" : {
-        "type" : 2,
-        "required" : True,      # OR some kind of dictionary? e.g. {subkind : [4]}
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
+    "SmaxTopQuarter" : _ContinuousCropParameter(
+        name = "SmaxTopQuarter",
+        datatype = float,
+        valid_range = (0, math.inf),
+        description = "Maximum root water extraction (m3water/m3soil.day) in top quarter of root zone",
+        scale = 3
+    ),
+    "SmaxBotQuarter" : _ContinuousCropParameter(
+        name = "SmaxBotQuarter",
+        datatype = float,
+        valid_range = (0, math.inf),
+        description = "Maximum root water extraction (m3water/m3soil.day) in bottom quarter of root zone",
+        scale = 3
+    ),
+    "CCEffectEvapLate" : _ContinuousCropParameter(
+        name = "CCEffectEvapLate",
+        datatype = int,
+        valid_range = (-math.inf, math.inf),
+        description = "Effect of canopy cover in reducing soil evaporation in late season stage"
+    ),
+    # ################################# #
+    # Canopy development                #
+    # ################################# #
+    "SizeSeedling" : _ContinuousCropParameter(
+        name = "SizeSeedling",
+        datatype = float,
+        valid_range = (0, math.inf),
+        description = "Soil surface covered by an individual seedling at 90 % emergence (cm2)",
+        scale = 2
+    ),
+    "SizePlant" : _ContinuousCropParameter(
+        name = "SizePlant",
+        datatype = float,
+        valid_range = (0, math.inf),
+        description = "Canopy size of individual plant (re-growth) at 1st day (cm2)",
+        scale = 2
+    ),
+    "PlantingDens" : _ContinuousCropParameter(
+        name = "PlantingDens",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = "Number of plants per hectare"
+    ),
+    "CGC" : _ContinuousCropParameter(
+        name = "CGC",
+        datatype = float,
+        valid_range = (-math.inf, math.inf),
+        description = "Canopy growth coefficient (CGC): Increase in canopy cover (fraction soil cover per day)",
+        scale = 5
+    ),
+    "YearCCx" : _ContinuousCropParameter(
+        name = "YearCCx",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = (
             "Number of years at which CCx declines to 90 % of its value due to self-thinning - for Perennials",
             "Number of years at which CCx declines to 90 % of its value due to self-thinning - Not Applicable"
-        ],
-        "format" : "{:0d}"
-    },
-    "CCxRoot" : {
-        "type" : 2,
-        "required" : True,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
+        ),
+        required = False,
+        missing_value = -9
+    ),
+    "CCxRoot" : _ContinuousCropParameter(
+        name = "CCxRoot",
+        datatype = float,
+        valid_range = (-math.inf, math.inf),
+        description = (
             "Shape factor of the decline of CCx over the years due to self-thinning - for Perennials",
             "Shape factor of the decline of CCx over the years due to self-thinning - Not Applicable"
-        ],
-        "format" : "{:0.2f}"
-    },
-    None,
-    "CCx" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Maximum canopy cover (CCx) in fraction soil cover",
-        "format" : "{:0.2f}"
-    },
-    "CDC" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Canopy decline coefficient (CDC): Decrease in canopy cover (in fraction per day)",
-        "format" : "{:0.5f}"
-    },
-    "DaysToGermination" : {
-        "type" : 2,
-        "required" : True,
-        "depends_on" : "Planting",
-        "valid_range" : [-math.inf, math.inf],
-        "type" : ""
-        "description" : {
-            0: "Calendar Days: from sowing to emergence", # Sowing
-            1: "Calendar Days: from transplanting to recovered transplant" # Transplant
-            -9: "Calendar Days: from regrowth to recovering"                # Regrowth
+        ),
+        scale = 2,
+        required = False,
+        missing_value = -9
+    ),
+    "CCx" : _ContinuousCropParameter(
+        name = "CCx",
+        datatype = float,
+        valid_range = (-math.inf, math.inf),
+        description = "Maximum canopy cover (CCx) in fraction soil cover",
+        scale = 2
+    ),
+    "CDC" : _ContinuousCropParameter(
+        name = "CDC",
+        datatype = float,
+        valid_range = (-math.inf, math.inf),
+        description = "Canopy decline coefficient (CDC): Decrease in canopy cover (in fraction per day)",
+        scale = 5
+    ),
+    "DaysToGermination" : _ContinuousCropParameter(
+        name = "DaysToGermination",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = {
+            0: "Calendar Days: from sowing to emergence",
+            1: "Calendar Days: from transplanting to recovered transplant",
+            -9: "Calendar Days: from regrowth to recovering"
         },
-        "format" : "{:0d}"
-    },
-    "DaysToMaxRooting" : {
-        "type" : 2,
-        "required" : True,
-        "depends_on" : "Planting",
-        "description" : {
+        depends_on = "Planting"
+    ),
+    "DaysToMaxRooting" : _ContinuousCropParameter(
+        name = "DaysToMaxRooting",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = {
             0: "Calendar Days: from sowing to maximum rooting depth", # Sowing
             1: "Calendar Days: from transplanting to maximum rooting depth", # Transplant
             -9: "Calendar Days: from regrowth to maximum rooting depth"       # Regrowth
         },
-        "format" : "{:0d}"
-    },
-    "DaysToSenescence" : {
-        "type" : 2,
-        "required" : True,
-        "depends_on" : "Planting",
-        "description" : {
+        depends_on = "Planting"
+    ),
+    "DaysToSenescence" : _ContinuousCropParameter(
+        name = "DaysToSenescence",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = {
             0: "Calendar Days: from sowing to start senescence",
             1: "Calendar Days: from transplanting to start senescence",
             -9: "Calendar Days: from regrowth to start senescence"
         },
-        "format" : "{:0d}"
-    },
-    "DaysToHarvest" : {
-        "type" : 2,
-        "required" : True,
-        "depends_on" : "Planting",
-        "description" : {
+        depends_on = "Planting"
+    ),
+    "DaysToHarvest" : _ContinuousCropParameter(
+        name = "DaysToHarvest",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = {
             0: "Calendar Days: from sowing to maturity (length of crop cycle)",
             1: "Calendar Days: from transplanting to maturity",
             -9: "Calendar Days: from regrowth to maturity"
         },
-        "format" : "{:0d}"
-    },
-    "DaysToFlowering" : {
-        "type" : 2,
-        "required" : True,
-        "depends_on" : "Planting",
-        "description" : {
-            0: "Calendar Days: from sowing to flowering (or yield formation if subkind is Tuber)",
-            1: "Calendar Days: from transplanting to flowering (or yield formation if subkind is Tuber)",
-            -9: "Calendar Days: from regrowth to flowering (or yield formation if subkind is Tuber)"
+        depends_on = "Planting"
+    ),
+    "DaysToFlowering" : _ContinuousCropParameter(
+        name = "DaysToFlowering",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = {
+            0: {
+                "default": "Calendar Days: from sowing to flowering",
+                3: "Calendar Days: from sowing to start of yield formation"
+            },
+            1: {
+                "default": "Calendar Days: from transplanting to flowering",
+                3: "Calendar Days: from transplanting to yield formation"
+            },
+            -9: {
+                "default": "Calendar Days: from regrowth to flowering",
+                 3: "Calendar Days: from regrowth to yield formation"
+            }
         },
-        "format" : "{:0d}"
-    },
-    "LengthFlowering" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Length of the flowering stage (days)",
-        "format" : "{:0d}"
-    },
-    "DeterminancyLinked" : {
-        "type" : 1,
-        "valid_range" : [0, 1],
-        "description" : {
+        depends_on = ("Planting", "subkind")
+    ),
+    "LengthFlowering" : _ContinuousCropParameter(
+        name = "LengthFlowering",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = "Length of the flowering stage (days)"
+    ),
+    "DeterminancyLinked" : _DiscreteCropParameter(
+        name = "DeterminancyLinked",
+        description = {
             0: "Crop determinancy unlinked with flowering",
             1: "Crop determinancy linked with flowering"
+        }
+    ),
+    "fExcess" : _ContinuousCropParameter(
+        name = "fExcess",
+        datatype = int,
+        valid_range = (0, 100),
+        description = {
+            "default": ("Excess of potential fruits (%)", "Excess of potential fruits - Not Applicable"),
+            1: "Parameter NO LONGER required",
+            4: "Parameter NO LONGER required"
         },
-        "format" : "{:0d}"
-    },
-    "fExcess" : {
-        "type" : 2,
-        "valid_range" : [0, 100],
-        "description" : "Excess of potential fruits (%)",
-        "format" : "{:0d}"
-    },
-    "DaysToHIo" : {
-        "type" : 2,
-        "valid_range" : [0, math.inf],
-        "description" : [
-            "Building up of Harvest Index starting at sowing/transplanting (days)", # Vegetative/forage
-            "Building up of Harvest Index starting at flowering (days)", # Grain
-            "Building up of Harvest Index starting at root/tuber enlargement (days)", # Tuber
-            "Building up of Harvest Index during yield formation (days)" # Default
-        ],
-        "format" : "{:0d}"
-    },
-    "WP" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Water Productivity normalized for ETo and CO2 (WP*) (gram/m2)",
-        "format" : "{:0.1f}"
-    },
-    "WPy" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Water Productivity normalized for ETo and CO2 during yield formation (as % WP*)",
-        "format" : "{:0d}"
-    },
-    "AdaptedToCO2" : {
-        "type" : 2,
-        "valid_range" : [0, 100],
-        "description" : "Crop performance under elevated atmospheric CO2 concentration (%)",
-        "format" : "{:0d}"
-    },
-    "HI" : {
-        "type" : 2,
-        "valid_range" : [0, 100],
-        "description" : "Reference Harvest Index (HIo) (%)",
-        "format" : "{:0d}"
-    },
-    "HIincrease" : {
-        "type" : 2,
-        "valid_range" : [0, 100],
-        "description" : "Possible increase (%) of HI due to water stress before flowering (or yield formation if subkind is Tuber)",
-        "format" : "{:0d}"
-    },
-    "aCoeff" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
+        depends_on = "subkind",
+        required = False,
+        missing_value = -9
+    ),
+    "DaysToHIo" : _ContinuousCropParameter(
+        name = "DaysToHIo",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = {
+            1: (
+                "Building up of Harvest Index starting at sowing/transplanting (days)",
+                "Building up of Harvest Index - Not Applicable"
+            ),
+            2: (
+                "Building up of Harvest Index starting at flowering (days)", # Grain
+                "Building up of Harvest Index - Not Applicable"
+            ),
+            3: (
+                "Building up of Harvest Index starting at root/tuber enlargement (days)", # Tuber
+                "Building up of Harvest Index - Not Applicable"
+            ),
+            4: (
+                "Building up of Harvest Index starting at sowing/transplanting (days)", # Vegetative/forage
+                "Building up of Harvest Index - Not Applicable"
+            ),
+            "default": (
+                "Building up of Harvest Index during yield formation (days)",
+                "Building up of Harvest Index - Not Applicable"
+            )
+        },
+        depends_on = "subkind",
+        required = False
+    ),
+    "WP" : _ContinuousCropParameter(
+        name = "WP",
+        datatype = float,
+        valid_range = (-math.inf, math.inf),
+        description = "Water Productivity normalized for ETo and CO2 (WP*) (gram/m2)",
+        scale = 1
+    ),
+    "WPy" : _ContinuousCropParameter(
+        name = "WPy",
+        datatype = int,
+        valid_range = (-math.inf, math.inf),
+        description = "Water Productivity normalized for ETo and CO2 during yield formation (as % WP*)"
+    ),
+    "AdaptedToCO2" : _ContinuousCropParameter(
+        name = "AdaptedToCO2",
+        datatype = int,
+        valid_range = (0, 100),
+        description = "Crop performance under elevated atmospheric CO2 concentration (%)"
+    ),
+    "HI" : _ContinuousCropParameter(
+        name = "HI",
+        datatype = int,
+        valid_range = (0, 100),
+        description = "Reference Harvest Index (HIo) (%)"
+    ),
+    "HIincrease" : _ContinuousCropParameter(
+        name = "HIincrease",
+        datatype = int,
+        valid_range = (0, 100),
+        description = {
+            "default" : "Possible increase (%) of HI due to water stress before flowering",
+            3: "Possible increase (%) of HI due to water stress before start of yield formation"
+        },
+        depends_on = "HIincrease"
+    ),
+    "aCoeff" : _ContinuousCropParameter(
+        name = "aCoeff",
+        datatype = float,
+        valid_range = (-math.inf, math.inf),
+        description = (
             "Coefficient describing positive impact on HI of restricted vegetative growth during yield formation",
             "No impact on HI of restricted vegetative growth during yield formation"
-        ],
-        "format" : "{:0.1f}"
-    },
-    "bCoeff" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
+        ),
+        scale = 1,
+        required = False,
+        missing_value = -9
+    ),
+    "bCoeff" : _ContinuousCropParameter(
+        name = "bCoeff",
+        datatype = float,
+        valid_range = (-math.inf, math.inf),
+        description = (
             "Coefficient describing negative impact on HI of stomatal closure during yield formation",
             "No effect on HI of stomatal closure during yield formation"
-        ],
-        "format" : "{:0.1f}"
-    },
-    "DHImax" : {
-        "type" : 2,
-        "valid_range" : [0, 100],
-        "description" : "Allowable maximum increase (%) of specified HI",
-        "format" : "{:0d}"
-    },
-    "GDDaysToGermination" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : {
+        ),
+        scale = 1,
+        required = False,
+        missing_value = -9
+    ),
+    "DHImax" : _ContinuousCropParameter(
+        name = "DHImax",
+        datatype = int,
+        valid_range = (0, 100),
+        description = "Allowable maximum increase (%) of specified HI"
+    ),
+    "GDDaysToGermination" : _ContinuousCropParameter(
+        name = "GDDaysToGermination",
+        datatype = int,
+        valid_range = (-math.inf, math.inf),
+        description = {
             0: "GDDays: from sowing to emergence",
             1: "GDDays: from transplanting to recovered transplant",
             -9: "GDDays: from regrowth to recovering"
         },
-        "format" : "{:0d}"
-    },
-    "GDDaysToMaxRooting" : {
-        "type" : 2,
-        "required" : True,
-        "depends_on" : "Planting",
-        "description" : {
+        depends_on = "Planting"
+    ),
+    "GDDaysToMaxRooting" : _ContinuousCropParameter(
+        name = "GDDaysToMaxRooting",
+        datatype = int,
+        valid_range = (-math.inf, math.inf),
+        description = {
             0: "GDDays: from sowing to maximum rooting depth",
             1: "GDDays: from transplanting to maximum rooting depth",
             -9: "GDDays: from regrowth to maximum rooting depth"
         },
-        "format" : "{:0d}"
-    },
-    "Senescence" : {
-        "type" : 2,
-        "required" : True,
-        "depends_on" : "Planting",
-        "description" : {
+        depends_on = "Planting"
+    ),
+    "Senescence" : _ContinuousCropParameter(
+        name = "Senescence",
+        datatype = int,
+        valid_range = (-math.inf, math.inf),
+        description = {
             0: "GDDays: from sowing to start senescence",
             1: "GDDays: from transplanting to start senescence",
             -9: "GDDays: from regrowth to start senescence"
         },
-        "format" : "{:0d}"
-    },
-    "Harvest" : {
-        "type" : 2,
-        "required" : True,
-        "depends_on" : "Planting",
-        "description" : {
+        depends_on = "Planting"
+    ),
+    "Harvest" : _ContinuousCropParameter(
+        name = "Harvest",
+        datatype = int,
+        valid_range = (-math.inf, math.inf),
+        description = {
             0: "GDDays: from sowing to maturity (length of crop cycle)",
             1: "GDDays: from transplanting to maturity",
             -9: "GDDays: from regrowth to maturity"
         },
-        "format" : "{:0d}"
-    },
-    "GDDaysToFlowering" : {
-        "type" : 2,
-        "required" : True,
-        "depends_on" : "Planting",
-        "description" : {
-            0: "GDDays: from sowing to flowering (or yield formation if subkind is Tuber)",
-            1: "GDDays: from transplanting to flowering (or yield formation if subkind is Tuber)",
-            -9: "GDDays: from regrowth to flowering (or yield formation if subkind is Tuber)"
+        depends_on = "Planting"
+    ),
+    "GDDaysToFlowering" : _ContinuousCropParameter(
+        name = "GDDaysToFlowering",
+        datatype = int,
+        valid_range = (-math.inf, math.inf),
+        description = {
+            0: {
+                "default": "GDDays: from sowing to flowering",
+                3: "GDDays: from sowing to start yield formation",
+            },
+            1: {
+                "default": "GDDays: from transplanting to flowering",
+                3: "GDDays: from sowing to start yield formation"
+            },
+            -9: {
+                "default": "GDDays: from regrowth to flowering",
+                3: "GDDays: from regrowth to start yield formation"
+            }
         },
-        "format" : "{:0d}"
-    },
-    "GDDLengthFlowering" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Length of the flowering stage (growing degree days)",
-        "format" : "{:0d}"
-    },
-    "GDDCGC" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "CGC for GGDays: Increase in canopy cover (in fraction soil cover per growing-degree day)",
-        "format" : "{:0.6f}"
-    },
-    "GDDCDC" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "CDC for GGDays: Decrease in canopy cover (in fraction per growing-degree day)",
-        "format" : "{:0.6f}"
-    },
-    "GDDaysToHIo" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "GDDays: building-up of Harvest Index during yield formation",
-        "format" : "{:0d}"
-    },
-    "DryMatter" : {
-        "type" : 2,
-        "valid_range" : [0, 100],
-        "description" : "dry matter content (%) of fresh yield",
-        "format" : "{:0d}"
-    },
-    "RootMinYear1" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
-            "Minimum effective rooting depth (m) in first year (for perennials)", # Forage
-            "Minimum effective rooting depth (m) in first year - required only in case of regrowth" # Regrowth
-        ],
-        "format" : "{:0.2f}"
-    },
-    "SownYear1" : {
-        "type" : 1,
-        "required" : True,
-        "valid_range" : [0, 1]
-        "description" : {
-            1 : [
-                "Crop is sown in 1st year (for perennials)",
-                "Crop is sown in 1st year - required only in case of regrowth"
-            ],
-            0 : [
-                "Crop is transplanted in 1st year (for perennials)",
-                "Crop is transplanted in 1st year - required only in case of regrowth"
-            ]
+        depends_on = ("Planting", "subkind")
+    ),
+    "GDDLengthFlowering" : _ContinuousCropParameter(
+        name = "GDDLengthFlowering",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = "Length of the flowering stage (growing degree days)"
+    ),
+    "GDDCGC" : _ContinuousCropParameter(
+        name = "GDDCGC",
+        datatype = float,
+        valid_range = (-math.inf, math.inf),
+        description = "CGC for GGDays: Increase in canopy cover (in fraction soil cover per growing-degree day)",
+        scale = 6
+    ),
+    "GDDCDC" : _ContinuousCropParameter(
+        name = "GDDCDC",
+        datatype = float,
+        valid_range = (-math.inf, math.inf),
+        description = "CDC for GGDays: Decrease in canopy cover (in fraction per growing-degree day)",
+        scale = 6
+    ),
+    "GDDaysToHIo" : _ContinuousCropParameter(
+        name = "GDDaysToHIo",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = "GDDays: building-up of Harvest Index during yield formation"
+    ),
+    "DryMatter" : _ContinuousCropParameter(
+        name = "DryMatter",
+        datatype = int,
+        valid_range = (0, 100),
+        description = "dry matter content (%) of fresh yield"
+    ),
+    "RootMinYear1" : _ContinuousCropParameter(
+        name = "RootMinYear1",
+        datatype = float,
+        valid_range = (0, math.inf),
+        description = {
+            4: "Minimum effective rooting depth (m) in first year (for perennials)", # Forage
+            "default": "Minimum effective rooting depth (m) in first year - required only in case of regrowth"
         },
-        "format" : "{:0d}"
-    },
-    "Assimilates_On" : {
-        "type" : 1,
-        "valid_range" : [0, 1],
-        "description" : {
+        scale = 2,
+        depends_on = "sukind"
+    ),
+    "SownYear1" : _DiscreteCropParameter(
+        name = "SownYear1",
+        description = {
+            4: {
+                1: "Crop is sown in 1st year (for perennials)",
+                0: "Crop is transplanted in 1st year (for perennials)"
+            },
+            "default": {
+                1: "Crop is sown in 1st year - required only in the case of regrowth",
+                0: "Crop is transplanted in 1st year - required only in the case of regrowth"
+            }
+        },
+        depends_on = "subkind"
+    ),
+    "Assimilates_On" : _DiscreteCropParameter(
+        name = "Assimilates_On",
+        description = {
             0 : "Transfer of assimilates from above ground parts to root system is NOT considered",
             1 : "Transfer of assimilates from above ground parts to root system is considered"
-        },
-        "format" : "{:0d}"
-    },
-    "Assimilates_Period" : {
-        "type" : 1,
-        "valid_range" : [0, 1],
-        "description" : {
+        }
+    ),
+    "Assimilates_Period" : _DiscreteCropParameter(
+        name = "Assimilates_On",
+        description = {
             0 : "Number of days at end of season during which assimilates are stored in root system",
             1 : "Number of days at end of season during which assimilates are stored in root system"
-        },
-        "format" : "{:0d}"
-    },
-    "Assimilates_Stored" : {
-        "type" : 1,
-        "valid_range" : [0, 1],
-        "description" : {
+        }
+    ),
+    "Assimilates_Stored" : _DiscreteCropParameter(
+        name = "Assimilates_On",
+        description = {
             0 : "Percentage of assimilates transferred to root system at last day of season",
             1 : "Percentage of assimilates transferred to root system at last day of season"
-        },
-        "format" : "{:0d}"
-    },
-    "Assimilates_Mobilized" : {
-        "type" : 1,
-        "valid_range" : [0, 1],
-        "description" : {
+        }
+    ),
+    "Assimilates_Mobilized" : _DiscreteCropParameter(
+        name = "Assimilates_On",
+        description = {
             0 : "Percentage of stored assimilates transferred to above ground parts in next season",
             1 : "Percentage of stored assimilates transferred to above ground parts in next season"
-        },
-        "format" : "{:0d}"
-    }
+        }
+    )
 }
 
-# Define some types which determine how to get default values/descrptions etc.
-# 1 - discrete
-# 2 - continuous
-CROP_PARAMETER_DICT = {
-    "subkind" : {
-        "datatype" : int,
-        "discrete" : True,
-        "depends_on" : None,
-        "valid_range" : [1, 2, 3, 4],
-        "description" : {
-            1: "leafy vegetable crop",
-            2: "fruit/grain producing crop",
-            3: "root/tuber crop",
-            4: "forage_crop"
-        },
-        "format" : "{:0d}"
-    },
-    "Planting" : {
-        "datatype" : int,
-        "discrete" : True,
-        "depends_on" : None,
-        "valid_range" : [0, 1, -9],
-        "description" : {
-            0: "Crop is sown",
-            1: "Crop is transplanted",
-            -9: "Crop is regrowth"
-        },
-        "format" : "{:0d}"
-    },
-    "ModeCycle" : {
-        "datatype" : int,
-        "discrete" : True,
-        "depends_on" : None,
-        "valid_range" : [0, 1],
-        "description" : {
-            0 : "Determination of crop cycle: by growing-degree days",
-            1 : "Determination of crop cycle: by calendar days"
-        },
-        "format" : "{:0d}"
-    },
-    "pMethod" : {
-        "datatype" : int,
-        "discrete" : True,
-        "depends_on" : None,
-        "valid_range" : [0, 1],
-        "description" : {
-            0: "No adjustment by ETo of soil water depletion factors (p)",
-            1: "Soil water depletion factors (p) are adjusted by ETo",
-        },
-        "format" : "{:0d}"
-    },
-    "Tbase" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Base temperature (degC) below which crop development does not progress",
-        "format" : "{:0.2f}"
-    },
-    "Tupper" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Upper temperature (degC) above which crop development no longer increases with an increase in temperature",
-        "format" : "{:0.2f}"
-    },
-    "GDDaysToHarvest" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Total length of crop cycle in growing degree-days",
-        "format" : "{:0d}"
-    },
-    "pLeafDefUL" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Soil water depletion factor for canopy expansion (p-exp) - Upper threshold",
-        "format" : "{:0.2f}"
-    },
-    "pLeafDeLL" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Soil water depletion factor for canopy expansion (p-exp) - Lower threshold",
-        "format" : "{:0.2f}"
-    },
-    "KsShapeFactorLeaf" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Shape factor for water stress coefficient for canopy expansion (0.0 = straight line)"
-        "format" : "{:0.1f}"
-    },
-    "pdef" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Soil water depletion fraction for stomatal control (p - sto) - Upper threshold",
-        "format" : "{:0.2f}"
-    },
-    "KsShapeFactorStomata" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Shape factor for water stress coefficient for stomatal control (0.0 = straight line)",
-        "format" : "{:0.1f}"
-    },
-    "pSenescence" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Soil water depletion factor for canopy senescence (p - sen) - Upper threshold",
-        "format" : "{:0.2f}"
-    },
-    "KsShapeFactorSenescence" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Shape factor for water stress coefficient for canopy senescence (0.0 = straight line)",
-        "format" : "{:0.1f}"
-    },
-    "SumEToDelaySenescence" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Sum(ETo) during dormant period to be exceeded before crop is permanently wilted",
-        "format" : "{:0d}"
-    },
-    "pPollination" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Soil water depletion factor for pollination (p - pol) - Upper threshold",
-        "format" : "{:0.2f}"
-    },
-    "AnaeroPoint" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Vol% for Anaerobiotic point (* (SAT - [vol%]) at which deficient aeration occurs *)",
-        "format" : "{:0d}"
-    },
-    "Stress" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Considered soil fertility stress for calibration of stress response (%)",
-        "format" : "{:0d}"
-    },
-    "ShapeCGC" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "required" : False,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
-            "Shape factor for the response of canopy expansion to soil fertility stress",
-            "Response of canopy expansion is not considered"
-        ],
-        "format" : "{:0.2f}"
-    },
-    "ShapeCCX" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "required" : False,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
-            "Shape factor for the response of maximum canopy cover to soil fertility stress",
-            "Response of maximum canopy cover is not considered"
-        ],
-        "format" : "{:0.2f}"
-    },
-    "ShapeWP" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "required" : False,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
-            "Shape factor for the response of crop Water Productivity to soil fertility stress",
-            "Response of crop Water Productivity is not considered"
-        ],
-        "format" : "{:0.2f}"
-    },
-    "ShapeCDecline" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "required" : False,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
-            "Shape factor for the response of decline of canopy cover to soil fertility stress",
-            "Response of decline of canopy cover is not considered"
-        ],
-        "format" : "{:0.2f}"
-    },
+CROP_PARAMETER_ORDER = {
+    "subkind",
+    "Planting",
+    "ModeCycle",
+    "pMethod",
+    "Tbase",
+    "Tupper",
+    "GDDaysToHarvest",
+    "pLeafDefUL",
+    "pLeafDeLL",
+    "KsShapeFactorLeaf",
+    "pdef",
+    "KsShapeFactorStomata",
+    "pSenescence",
+    "KsShapeFactorSenescence",
+    "SumEToDelaySenescence",
+    "pPollination",
+    "AnaeroPoint",
+    "Stress",
+    "ShapeCGC",
+    "ShapeCCX",
+    "ShapeWP",
+    "ShapeCDecline",
     None,
-    "Tcold" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "required" : False,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
-            "Minimum air temperature below which pollination starts to fail (cold stress) (degC)",
-            "Cold (air temperature) stress affecting pollination - not considered"
-        ],
-        "format" : "{:0d}"
-    },
-    "Theat" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "required" : False,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
-            "Maximum air temperature above which pollination starts to fail (heat stress) (degC)",
-            "Heat (air temperature) stress affecting pollination - not considered"
-        ],
-        "format" : "{:0d}"
-    },
-    "GDtranspLow" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "required" : False,
-        "valid_range" : [0., math.inf],
-        "description" : [
-            "Minimum growing degrees required for full crop transpiration (degC - day)",
-            "Cold (air temperature) stress on crop transpiration not considered"
-        ],
-        "format" : "{:0.1f}"
-    },
-    "ECemin" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Electrical Conductivity of soil saturation extract at which crop starts to be affected by soil salinity (dS/m)",
-        "format" : "{:0d}"
-    },
-    "ECemax" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Electrical Conductivity of soil saturation extract at which crop can no longer grow (dS/m)",
-        "format" : "{:0d}"
-    },
+    "Tcold",
+    "Theat",
+    "GDtranspLow",
+    "ECemin",
+    "ECemax",
     None,
-    "CCsaltDistortion" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [0, 100]
-        "description" : "Calibrated distortion (%) of CC due to salinity stress (Range: 0 (none) to +100 (very strong))",
-        "format" : "{:0d}"
-    },
-    "ResponseECsw" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [0, 200]
-        "description" : "Calibrated response (%) of stomata stress to ECsw (Range: 0 (none) to +200 (extreme))",
-        "format" : "{:0d}"
-    },
-    "KcTop" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Crop coefficient when canopy is complete but prior to senescence (KcTr,x)",
-        "format" : "{:0.2f}"
-    },
-    "KcDecline" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Decline of crop coefficient (%/day) as a result of ageing, nitrogen deficiency, etc.",
-        "format" : "{:0.3f}"
-    },
-    "RootMin" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Minimum effective rooting depth (m)",
-        "format" : "{:0.2f}"
-    },
-    "RootMax" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Maximum effective rooting depth (m)",
-        "format" : "{:0.2f}"
-    },
-    "RootShape" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Shape factor describing root zone expansion",
-        "format" : "{:0d}"
-    },
-    "SmaxTopQuarter" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Maximum root water extraction (m3water/m3soil.day) in top quarter of root zone",
-        "format" : "{:0.3f}"
-    },
-    "SmaxBotQuarter" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Maximum root water extraction (m3water/m3soil.day) in bottom quarter of root zone",
-        "format" : "{:0.3f}"
-    },
-    "CCEffectEvapLate" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Effect of canopy cover in reducing soil evaporation in late season stage",
-        "format" : "{:0d}"
-    },
-    "SizeSeedling" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Soil surface covered by an individual seedling at 90 % emergence (cm2)",
-        "format" : "{:0.2f}"
-    },
-    "SizePlant" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Canopy size of individual plant (re-growth) at 1st day (cm2)",
-        "format" : "{:0.2f}"
-    },
-    "PlantingDens" : {
-        "datatype" : float,
-        "discrete" : False,
-        "depends_on" : None,
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Number of plants per hectare",
-        "format" : "{:0d}"
-    },
-    "CGC" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Canopy growth coefficient (CGC): Increase in canopy cover (fraction soil cover per day)",
-        "format" : "{:0.5f}"
-    },
-    "YearCCx" : {
-        "type" : 2,
-        "required" : True,      # OR some kind of dictionary? e.g. {subkind : [4]}
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
-            "Number of years at which CCx declines to 90 % of its value due to self-thinning - for Perennials",
-            "Number of years at which CCx declines to 90 % of its value due to self-thinning - Not Applicable"
-        ],
-        "format" : "{:0d}"
-    },
-    "CCxRoot" : {
-        "type" : 2,
-        "required" : True,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
-            "Shape factor of the decline of CCx over the years due to self-thinning - for Perennials",
-            "Shape factor of the decline of CCx over the years due to self-thinning - Not Applicable"
-        ],
-        "format" : "{:0.2f}"
-    },
+    "CCsaltDistortion",
+    "ResponseECsw",
+    "KcTop",
+    "KcDecline",
+    "RootMin",
+    "RootMax",
+    "RootShape",
+    "SmaxTopQuarter",
+    "SmaxBotQuarter",
+    "CCEffectEvapLate",
+    "SizeSeedling",
+    "SizePlant",
+    "PlantingDens",
+    "CGC",
+    "YearCCx",
+    "CCxRoot",
     None,
-    "CCx" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Maximum canopy cover (CCx) in fraction soil cover",
-        "format" : "{:0.2f}"
-    },
-    "CDC" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Canopy decline coefficient (CDC): Decrease in canopy cover (in fraction per day)",
-        "format" : "{:0.5f}"
-    },
-    "DaysToGermination" : {
-        "type" : 2,
-        "required" : True,
-        "depends_on" : "Planting",
-        "valid_range" : [-math.inf, math.inf],
-        "type" : ""
-        "description" : {
-            0: "Calendar Days: from sowing to emergence", # Sowing
-            1: "Calendar Days: from transplanting to recovered transplant" # Transplant
-            -9: "Calendar Days: from regrowth to recovering"                # Regrowth
-        },
-        "format" : "{:0d}"
-    },
-    "DaysToMaxRooting" : {
-        "type" : 2,
-        "required" : True,
-        "depends_on" : "Planting",
-        "description" : {
-            0: "Calendar Days: from sowing to maximum rooting depth", # Sowing
-            1: "Calendar Days: from transplanting to maximum rooting depth", # Transplant
-            -9: "Calendar Days: from regrowth to maximum rooting depth"       # Regrowth
-        },
-        "format" : "{:0d}"
-    },
-    "DaysToSenescence" : {
-        "type" : 2,
-        "required" : True,
-        "depends_on" : "Planting",
-        "description" : {
-            0: "Calendar Days: from sowing to start senescence",
-            1: "Calendar Days: from transplanting to start senescence",
-            -9: "Calendar Days: from regrowth to start senescence"
-        },
-        "format" : "{:0d}"
-    },
-    "DaysToHarvest" : {
-        "type" : 2,
-        "required" : True,
-        "depends_on" : "Planting",
-        "description" : {
-            0: "Calendar Days: from sowing to maturity (length of crop cycle)",
-            1: "Calendar Days: from transplanting to maturity",
-            -9: "Calendar Days: from regrowth to maturity"
-        },
-        "format" : "{:0d}"
-    },
-    "DaysToFlowering" : {
-        "type" : 2,
-        "required" : True,
-        "depends_on" : "Planting",
-        "description" : {
-            0: "Calendar Days: from sowing to flowering (or yield formation if subkind is Tuber)",
-            1: "Calendar Days: from transplanting to flowering (or yield formation if subkind is Tuber)",
-            -9: "Calendar Days: from regrowth to flowering (or yield formation if subkind is Tuber)"
-        },
-        "format" : "{:0d}"
-    },
-    "LengthFlowering" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Length of the flowering stage (days)",
-        "format" : "{:0d}"
-    },
-    "DeterminancyLinked" : {
-        "type" : 1,
-        "valid_range" : [0, 1],
-        "description" : {
-            0: "Crop determinancy unlinked with flowering",
-            1: "Crop determinancy linked with flowering"
-        },
-        "format" : "{:0d}"
-    },
-    "fExcess" : {
-        "type" : 2,
-        "valid_range" : [0, 100],
-        "description" : "Excess of potential fruits (%)",
-        "format" : "{:0d}"
-    },
-    "DaysToHIo" : {
-        "type" : 2,
-        "valid_range" : [0, math.inf],
-        "description" : [
-            "Building up of Harvest Index starting at sowing/transplanting (days)", # Vegetative/forage
-            "Building up of Harvest Index starting at flowering (days)", # Grain
-            "Building up of Harvest Index starting at root/tuber enlargement (days)", # Tuber
-            "Building up of Harvest Index during yield formation (days)" # Default
-        ],
-        "format" : "{:0d}"
-    },
-    "WP" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Water Productivity normalized for ETo and CO2 (WP*) (gram/m2)",
-        "format" : "{:0.1f}"
-    },
-    "WPy" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Water Productivity normalized for ETo and CO2 during yield formation (as % WP*)",
-        "format" : "{:0d}"
-    },
-    "AdaptedToCO2" : {
-        "type" : 2,
-        "valid_range" : [0, 100],
-        "description" : "Crop performance under elevated atmospheric CO2 concentration (%)",
-        "format" : "{:0d}"
-    },
-    "HI" : {
-        "type" : 2,
-        "valid_range" : [0, 100],
-        "description" : "Reference Harvest Index (HIo) (%)",
-        "format" : "{:0d}"
-    },
-    "HIincrease" : {
-        "type" : 2,
-        "valid_range" : [0, 100],
-        "description" : "Possible increase (%) of HI due to water stress before flowering (or yield formation if subkind is Tuber)",
-        "format" : "{:0d}"
-    },
-    "aCoeff" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
-            "Coefficient describing positive impact on HI of restricted vegetative growth during yield formation",
-            "No impact on HI of restricted vegetative growth during yield formation"
-        ],
-        "format" : "{:0.1f}"
-    },
-    "bCoeff" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
-            "Coefficient describing negative impact on HI of stomatal closure during yield formation",
-            "No effect on HI of stomatal closure during yield formation"
-        ],
-        "format" : "{:0.1f}"
-    },
-    "DHImax" : {
-        "type" : 2,
-        "valid_range" : [0, 100],
-        "description" : "Allowable maximum increase (%) of specified HI",
-        "format" : "{:0d}"
-    },
-    "GDDaysToGermination" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : {
-            0: "GDDays: from sowing to emergence",
-            1: "GDDays: from transplanting to recovered transplant",
-            -9: "GDDays: from regrowth to recovering"
-        },
-        "format" : "{:0d}"
-    },
-    "GDDaysToMaxRooting" : {
-        "type" : 2,
-        "required" : True,
-        "depends_on" : "Planting",
-        "description" : {
-            0: "GDDays: from sowing to maximum rooting depth",
-            1: "GDDays: from transplanting to maximum rooting depth",
-            -9: "GDDays: from regrowth to maximum rooting depth"
-        },
-        "format" : "{:0d}"
-    },
-    "Senescence" : {
-        "type" : 2,
-        "required" : True,
-        "depends_on" : "Planting",
-        "description" : {
-            0: "GDDays: from sowing to start senescence",
-            1: "GDDays: from transplanting to start senescence",
-            -9: "GDDays: from regrowth to start senescence"
-        },
-        "format" : "{:0d}"
-    },
-    "Harvest" : {
-        "type" : 2,
-        "required" : True,
-        "depends_on" : "Planting",
-        "description" : {
-            0: "GDDays: from sowing to maturity (length of crop cycle)",
-            1: "GDDays: from transplanting to maturity",
-            -9: "GDDays: from regrowth to maturity"
-        },
-        "format" : "{:0d}"
-    },
-    "GDDaysToFlowering" : {
-        "type" : 2,
-        "required" : True,
-        "depends_on" : "Planting",
-        "description" : {
-            0: "GDDays: from sowing to flowering (or yield formation if subkind is Tuber)",
-            1: "GDDays: from transplanting to flowering (or yield formation if subkind is Tuber)",
-            -9: "GDDays: from regrowth to flowering (or yield formation if subkind is Tuber)"
-        },
-        "format" : "{:0d}"
-    },
-    "GDDLengthFlowering" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "Length of the flowering stage (growing degree days)",
-        "format" : "{:0d}"
-    },
-    "GDDCGC" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "CGC for GGDays: Increase in canopy cover (in fraction soil cover per growing-degree day)",
-        "format" : "{:0.6f}"
-    },
-    "GDDCDC" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "CDC for GGDays: Decrease in canopy cover (in fraction per growing-degree day)",
-        "format" : "{:0.6f}"
-    },
-    "GDDaysToHIo" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : "GDDays: building-up of Harvest Index during yield formation",
-        "format" : "{:0d}"
-    },
-    "DryMatter" : {
-        "type" : 2,
-        "valid_range" : [0, 100],
-        "description" : "dry matter content (%) of fresh yield",
-        "format" : "{:0d}"
-    },
-    "RootMinYear1" : {
-        "type" : 2,
-        "valid_range" : [-math.inf, math.inf],
-        "description" : [
-            "Minimum effective rooting depth (m) in first year (for perennials)", # Forage
-            "Minimum effective rooting depth (m) in first year - required only in case of regrowth" # Regrowth
-        ],
-        "format" : "{:0.2f}"
-    },
-    "SownYear1" : {
-        "type" : 1,
-        "required" : True,
-        "valid_range" : [0, 1]
-        "description" : {
-            1 : [
-                "Crop is sown in 1st year (for perennials)",
-                "Crop is sown in 1st year - required only in case of regrowth"
-            ],
-            0 : [
-                "Crop is transplanted in 1st year (for perennials)",
-                "Crop is transplanted in 1st year - required only in case of regrowth"
-            ]
-        },
-        "format" : "{:0d}"
-    },
-    "Assimilates_On" : {
-        "type" : 1,
-        "valid_range" : [0, 1],
-        "description" : {
-            0 : "Transfer of assimilates from above ground parts to root system is NOT considered",
-            1 : "Transfer of assimilates from above ground parts to root system is considered"
-        },
-        "format" : "{:0d}"
-    },
-    "Assimilates_Period" : {
-        "type" : 1,
-        "valid_range" : [0, 1],
-        "description" : {
-            0 : "Number of days at end of season during which assimilates are stored in root system",
-            1 : "Number of days at end of season during which assimilates are stored in root system"
-        },
-        "format" : "{:0d}"
-    },
-    "Assimilates_Stored" : {
-        "type" : 1,
-        "valid_range" : [0, 1],
-        "description" : {
-            0 : "Percentage of assimilates transferred to root system at last day of season",
-            1 : "Percentage of assimilates transferred to root system at last day of season"
-        },
-        "format" : "{:0d}"
-    },
-    "Assimilates_Mobilized" : {
-        "type" : 1,
-        "valid_range" : [0, 1],
-        "description" : {
-            0 : "Percentage of stored assimilates transferred to above ground parts in next season",
-            1 : "Percentage of stored assimilates transferred to above ground parts in next season"
-        },
-        "format" : "{:0d}"
-    }
+    "CCx",
+    "CDC",
+    "DaysToGermination",
+    "DaysToMaxRooting",
+    "DaysToSenescence",
+    "DaysToHarvest",
+    "DaysToFlowering",
+    "LengthFlowering",
+    "DeterminancyLinked",
+    "fExcess",
+    "DaysToHIo",
+    "WP",
+    "WPy",
+    "AdaptedToCO2",
+    "HI",
+    "HIincrease",
+    "aCoeff",
+    "bCoeff",
+    "DHImax",
+    "GDDaysToGermination",
+    "GDDaysToMaxRooting",
+    "Senescence",
+    "Harvest",
+    "GDDaysToFlowering",
+    "GDDLengthFlowering",
+    "GDDCGC",
+    "GDDCDC",
+    "GDDaysToHIo",
+    "DryMatter",
+    "RootMinYear1",
+    "SownYear1",
+    "Assimilates_On",
+    "Assimilates_Period",
+    "Assimilates_Stored",
+    "Assimilates_Mobilized",
 }
 
 class CropParameter(Parameter):
