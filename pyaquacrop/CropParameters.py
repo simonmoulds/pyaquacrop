@@ -5,14 +5,7 @@ import math
 from typing import Dict, Optional, Union, Tuple
 from abc import ABC, abstractmethod, abstractproperty
 
-from constants import (
-    AQUACROP_VERSION,
-    VALID_SUBKIND,
-    VALID_PLANTING,
-    VALID_MODECYCLE,
-    VALID_PMETHOD,
-)
-
+from constants import AQUACROP_VERSION
 
 def _format_crop_parameter(number_str, pad_before=6, pad_after=7):
     try:
@@ -72,23 +65,26 @@ class _CropParameter(Parameter):
                  required: bool = True,
                  missing_value: int = -9):
 
-        self.value = None
-        self.name = name
-        self.datatype = datatype
-        self.discrete = discrete
-        self.valid_range = valid_range
-        self.description = description
-        self.depends_on = depends_on
-        self.scale = scale
-        self.required = optional
+        self._value = None
+        self._name = name
+        self._datatype = datatype
+        self._discrete = discrete
+        self._valid_range = valid_range
+        self._description = description
+        self._depends_on = depends_on
+        self._scale = scale
+        self._required = required
 
     def set_value(self, value):
         self.check_value(value)
-        self.value = value
 
     @property
     def name(self):
-        return self.name
+        return self._name
+
+    @property
+    def datatype(self):
+        return self._datatype
 
     @property
     def default_value(self):
@@ -96,7 +92,11 @@ class _CropParameter(Parameter):
 
     @property
     def valid_range(self):
-        return self.valid_range
+        return self._valid_range
+
+    @property
+    def description(self):
+        return self._description
 
     @property
     def str_format(self):
@@ -106,6 +106,7 @@ class _CropParameter(Parameter):
             fmt = f"{self.value:.{self.scale}f}"
         num = _format_crop_parameter()
         return num + ' : ' + self.description
+
 
 class _DiscreteCropParameter(_CropParameter):
     def __init__(self,
@@ -128,9 +129,12 @@ class _DiscreteCropParameter(_CropParameter):
         )
 
     def check_value(self, value):
+        if not float(value).is_integer():
+            raise ValueError    # TODO add informative error message
+        value = int(value)
         if not value in self.valid_range:
             raise ValueError
-
+        self.value = value      # TODO add informative error message
 
 class _ContinuousCropParameter(_CropParameter):
     def __init__(self,
@@ -156,9 +160,17 @@ class _ContinuousCropParameter(_CropParameter):
         )
 
     def check_value(self, value):
+        # Check that value is (or can be) an integer:
+        if self.datatype is int:
+            if not float(value).is_integer():
+                raise ValueError
+            value = int(value)
+        else:
+            value = float(value)
+        # Check that value is within the valid range:
         if (value < self.valid_range[0]) | (value > self.valid_range[1]):
             raise ValueError
-        return True
+        self.value = value
 
 
 # The idea here is to have a dictionary of all crop parameters which can then be organised properly in a CropParameterDict class
@@ -442,7 +454,7 @@ CROP_PARAMETER_DICT = {
         datatype = float,
         valid_range = (-math.inf, math.inf),
         description = "Crop coefficient when canopy is complete but prior to senescence (KcTr,x)",
-        shape = 2
+        scale = 2
     ),
     # ################################# #
     # Evapotranspiration                #
@@ -452,14 +464,14 @@ CROP_PARAMETER_DICT = {
         datatype = float,
         valid_range = (-math.inf, math.inf),
         description = "Decline of crop coefficient (%/day) as a result of ageing, nitrogen deficiency, etc.",
-        shape = 3
+        scale = 3
     ),
     "RootMin" : _ContinuousCropParameter(
         name = "RootMin",
         datatype = float,
         valid_range = (-math.inf, math.inf),
         description = "Minimum effective rooting depth (m)",
-        shape = 2
+        scale = 2
     ),
     "RootMax" : _ContinuousCropParameter(
         name = "RootMax",
