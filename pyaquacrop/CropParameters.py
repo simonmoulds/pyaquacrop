@@ -2,6 +2,8 @@
 
 import os
 import math
+import pickle
+import pkgutil
 from typing import Dict, Optional, Union, Tuple
 from abc import ABC, abstractmethod, abstractproperty
 
@@ -22,6 +24,13 @@ def _format_crop_parameter(number_str, pad_before=6, pad_after=7):
         number_str = whole + frac
     return number_str
 
+
+def _load_default_data():
+    res = pkgutil.get_data(
+        __name__, 'data/default_crop_parameters.pkl'
+    )
+    data = pickle.loads(DEFAULT_CROP_PARAMETERS_RES)
+    return data
 
 class Parameter(ABC):
 
@@ -78,6 +87,10 @@ class _CropParameter(Parameter):
     def set_value(self, value):
         self.check_value(value)
 
+    def set_default_value(self, crop_name):
+        self._default_value = default_value
+        self._value = default_value
+
     @property
     def name(self):
         return self._name
@@ -132,7 +145,7 @@ class _DiscreteCropParameter(_CropParameter):
         if not float(value).is_integer():
             raise ValueError    # TODO add informative error message
         value = int(value)
-        if not value in self.valid_range:
+        if not value in self.valid_range or value == 'default':
             raise ValueError
         self.value = value      # TODO add informative error message
 
@@ -171,8 +184,6 @@ class _ContinuousCropParameter(_CropParameter):
         if (value < self.valid_range[0]) | (value > self.valid_range[1]):
             raise ValueError
         self.value = value
-
-
 # The idea here is to have a dictionary of all crop parameters which can then be organised properly in a CropParameterDict class
 CROP_PARAMETER_DICT = {
 
@@ -908,7 +919,25 @@ CROP_PARAMETER_DICT = {
     )
 }
 
-CROP_PARAMETER_ORDER = {
+FORAGE_CROP_PARAMETER_ORDER = (
+    "GenerateOnset",
+    "OnsetFirstDay",
+    "OnsetFirstMonth",
+    "OnsetLengthSearchPeriod",
+    "OnsetThresholdValue",
+    "OnsetPeriodValue",
+    "OnsetOccurrence",
+    "GenerateEnd",
+    "EndLastDay",
+    "EndLastMonth",
+    "ExtraYears",
+    "EndLengthSearchPeriod",
+    "EndThresholdValue",
+    "EndPeriodValue",
+    "EndOccurrence"
+)
+
+CROP_PARAMETER_ORDER = (
     "subkind",
     "Planting",
     "ModeCycle",
@@ -917,7 +946,7 @@ CROP_PARAMETER_ORDER = {
     "Tupper",
     "GDDaysToHarvest",
     "pLeafDefUL",
-    "pLeafDeLL",
+    "pLeafDefLL",
     "KsShapeFactorLeaf",
     "pdef",
     "KsShapeFactorStomata",
@@ -976,8 +1005,8 @@ CROP_PARAMETER_ORDER = {
     "DHImax",
     "GDDaysToGermination",
     "GDDaysToMaxRooting",
-    "Senescence",
-    "Harvest",
+    "GDDaysToSenescence",
+    "GDDaysToHarvest",
     "GDDaysToFlowering",
     "GDDLengthFlowering",
     "GDDCGC",
@@ -990,86 +1019,74 @@ CROP_PARAMETER_ORDER = {
     "Assimilates_Period",
     "Assimilates_Stored",
     "Assimilates_Mobilized",
-}
+)
 
-class CropParameter(Parameter):
-    def __init__(self, crop_type: str, parameter_name: str):
-        self._set_crop_type(crop_type)
-        self._set_parameter_name(name)
-        self._set_description()
-        self._set_default_value()
-        self.set_valid_range()
-        self.set_str_format()
+CROP_TYPES = (
+    "Barley",
+    "Cotton",
+    "DryBean",
+    "Maize",
+    "PaddyRice",
+    "Potato",
+    "Quinoa",
+    "Sorghum",
+    "Soybean",
+    "SugarBeet",
+    "SugarCane",
+    "Sunflower",
+    "Tef",
+    "Tomato",
+    "Wheat"
+)
 
-    def _set_parameter_name(self, name):
-        # TODO check against valid parameter names
-        self.name = name
+GDD_CROP_TYPES = (
+    "AlfalfaGDD",
+    "BarleyGDD",
+    "CottonGDD",
+    "DryBeanGDD",
+    "MaizeGDD",
+    "PaddyRiceGDD",
+    "PotatoGDD",
+    "SorghumGDD",
+    "SoybeanGDD",
+    "SugarBeetGDD",
+    "SunflowerGDD",
+    "TomatoGDD",
+    "WheatGDD"
+)
 
-    def _set_crop_type(self, crop_type):
-        # TODO check against valid crop types
-        self.crop_type = crop_type
+# This should perhaps inherit dictionary with an additional write method
+class CropParameterSet:
 
-    def _set_description(self):
+    CROP_PARAMETERS = CROP_PARAMETER_DICT
+    CROP_PARAMETER_ORDER = CROP_PARAMETER_ORDER
+    DEFAULT_CROP_PARAMETERS = _load_default_data()
+    VALID_CROP_TYPES = CROP_TYPES + GDD_CROP_TYPES
+    def __init__(self, crop_name):
+
+        # Check crop_name is valid
+        self.crop_name = crop_name
+        if self.crop_name not in self.VALID_CROP_TYPES:
+            raise ValueError("Hello, world")
+
+        self._default_parameter_set = self.DEFAULT_CROP_PARAMETERS[crop_name]
+        self.crop_name = crop_name
+        self.crop_parameter_names = tuple(self.CROP_PARAMETERS.keys())
+        # Now that we have verified the crop type, pull default values
+        self.set_default_values()
+
+    def set_default_values(self):
+        for _, param_obj in self.CROP_PARAMETERS.items():
+            print(param_obj.name)
+            param_obj.set_value(
+                self._default_parameter_set[param_obj.name]
+            )
+
+    def set_value(self, name, value):
+        try:
+            self.CROP_PARAMETERS[name].set_value(value)
+        except KeyError:
+            raise ValueError
+
+    def write(self, filename):
         pass
-
-    def _set_default_value(self):
-        pass
-
-    def _set_valid_range(self):
-        pass
-
-    def _set_str_format(self):
-        pass
-
-    @property
-    def name(self):
-        return self.name
-
-    @property
-    def description(self):
-        return self.description
-
-    @property
-    def default_value(self):
-        return self.default_value
-
-    @property
-    def valid_range(self):
-        return self.valid_range
-
-    @property
-    def str_format(self):
-        return self.str_format
-
-# No need for separate
-# class KsShapeFactor(CropParameter):
-#     def __init__(self, crop_type):
-#         super(KsShapeFactor, self).__init__(crop_type=crop_type)
-#         self.value = self.default_value
-
-#     def set_value(self, value):
-#         if value >= self.valid_range[0] and value <= self.valid_range[1]:
-#             self.value = value
-#         else:
-#             raise ValueError("Out of range")
-
-#     @property
-#     def name(self):
-#         return "KsShapeFactor"
-
-#     @property
-#     def description(self):
-#         return "Shape factor for water stress coefficient for canopy expansion (0.0 = straight line)"
-
-#     @property
-#     def default_value(self):
-#         return 1
-
-#     @property
-#     def valid_range(self):
-#         return [0, 1]
-
-#     @property
-#     def str_format(self):
-#         value = _format_crop_parameter("{:0.2f}".format(self.value))
-#         return " : ".join([value, self.description])
