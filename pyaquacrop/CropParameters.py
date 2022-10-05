@@ -69,12 +69,13 @@ class _CropParameter(Parameter):
                  discrete: bool,
                  valid_range: tuple,
                  description: Union[dict, tuple, str],
-                 depends_on: Optional[str] = None,
+                 depends_on: Optional[tuple] = None,
                  scale: Optional[int] = 2,
                  required: bool = True,
                  missing_value: int = -9):
 
         self._value = None
+        self._default_value = None
         self._name = name
         self._datatype = datatype
         self._discrete = discrete
@@ -83,13 +84,18 @@ class _CropParameter(Parameter):
         self._depends_on = depends_on
         self._scale = scale
         self._required = required
+        self._missing_value = missing_value
 
     def set_value(self, value):
         self.check_value(value)
 
-    def set_default_value(self, crop_name):
+    def set_default_value(self, default_value):
         self._default_value = default_value
         self._value = default_value
+
+    @property
+    def value(self):
+        return self._value
 
     @property
     def name(self):
@@ -112,6 +118,22 @@ class _CropParameter(Parameter):
         return self._description
 
     @property
+    def depends_on(self):
+        return self._depends_on
+
+    @property
+    def scale(self):
+        return self._scale
+
+    @property
+    def required(self):
+        return self._required
+
+    @property
+    def missing_value(self):
+        return self._missing_value
+
+    @property
     def str_format(self):
         if self.datatype is int:
             fmt = f"{self.value:d}"
@@ -124,8 +146,9 @@ class _CropParameter(Parameter):
 class _DiscreteCropParameter(_CropParameter):
     def __init__(self,
                  name: str,
+                 valid_range: tuple,
                  description: dict,
-                 depends_on: Optional[str] = None,
+                 depends_on: Optional[tuple] = None,
                  required: bool = True,
                  missing_value: Optional[int] = -9):
 
@@ -133,7 +156,7 @@ class _DiscreteCropParameter(_CropParameter):
             name = name,
             datatype = int,
             discrete = True,
-            valid_range = (int(key) for key in description.keys()),
+            valid_range = valid_range,
             description = description,
             depends_on = depends_on,
             scale = None,
@@ -145,7 +168,7 @@ class _DiscreteCropParameter(_CropParameter):
         if not float(value).is_integer():
             raise ValueError    # TODO add informative error message
         value = int(value)
-        if not value in self.valid_range or value == 'default':
+        if not value in self.valid_range:
             raise ValueError
         self.value = value      # TODO add informative error message
 
@@ -153,9 +176,9 @@ class _ContinuousCropParameter(_CropParameter):
     def __init__(self,
                  name: str,
                  datatype: type,
-                 valid_range: list,
+                 valid_range: tuple,
                  description: Union[str, tuple],
-                 depends_on: Optional[str] = None,
+                 depends_on: Optional[tuple] = None,
                  scale: Optional[int] = 2,
                  required: bool = True,
                  missing_value: Optional[int] = -9):
@@ -180,10 +203,16 @@ class _ContinuousCropParameter(_CropParameter):
             value = int(value)
         else:
             value = float(value)
-        # Check that value is within the valid range:
-        if (value < self.valid_range[0]) | (value > self.valid_range[1]):
-            raise ValueError
-        self.value = value
+
+        # See if value is required
+        if not self.required and value == self.missing_value:
+            self.value = self.missing_value
+        else:
+            # Check that value is within the valid range:
+            if (value < self.valid_range[0]) | (value > self.valid_range[1]):
+                raise ValueError
+            self.value = value
+
 # The idea here is to have a dictionary of all crop parameters which can then be organised properly in a CropParameterDict class
 CROP_PARAMETER_DICT = {
 
@@ -192,6 +221,7 @@ CROP_PARAMETER_DICT = {
     # ################################# #
     "subkind" : _DiscreteCropParameter(
         name = "subkind",
+        valid_range = (1, 2, 3, 4),
         description = {
             1: "leafy vegetable crop",
             2: "fruit/grain producing crop",
@@ -204,6 +234,7 @@ CROP_PARAMETER_DICT = {
     # ################################# #
     "Planting" : _DiscreteCropParameter(
         name = "Planting",
+        valid_range = (0, 1, -9),
         description = {
             "default" : {
                 0: "Crop is sown",
@@ -216,13 +247,14 @@ CROP_PARAMETER_DICT = {
                 -9: "Crop is regrowth"
             },
         },
-        depends_on = "Planting"
+        depends_on = ("Planting",)
     ),
     # ################################# #
     # Mode (description crop cycle)     #
     # ################################# #
     "ModeCycle" : _DiscreteCropParameter(
         name = "ModeCycle",
+        valid_range = (0, 1),
         description = {
             0 : "Determination of crop cycle: by growing-degree days",
             1 : "Determination of crop cycle: by calendar days"
@@ -233,6 +265,7 @@ CROP_PARAMETER_DICT = {
     # ################################# #
     "pMethod" : _DiscreteCropParameter(
         name = "pMethod",
+        valid_range = (0, 1),
         description = {
             0: "No adjustment by ETo of soil water depletion factors (p)",
             1: "Soil water depletion factors (p) are adjusted by ETo",
@@ -355,7 +388,7 @@ CROP_PARAMETER_DICT = {
     "ShapeCGC" : _ContinuousCropParameter(
         name = "ShapeCGC",
         datatype = float,
-        valid_range = (-math.inf, 24.9),
+        valid_range = (-math.inf, math.inf),
         description = (
             "Shape factor for the response of canopy expansion to soil fertility stress",
             "Response of canopy expansion is not considered"
@@ -366,7 +399,7 @@ CROP_PARAMETER_DICT = {
     "ShapeCCX" : _ContinuousCropParameter(
         name = "ShapeCCX",
         datatype = float,
-        valid_range = (-math.inf, 24.9),
+        valid_range = (-math.inf, math.inf),
         description = (
             "Shape factor for the response of maximum canopy cover to soil fertility stress",
             "Response of maximum canopy cover is not considered"
@@ -377,7 +410,7 @@ CROP_PARAMETER_DICT = {
     "ShapeWP" : _ContinuousCropParameter(
         name = "ShapeWP",
         datatype = float,
-        valid_range = (-math.inf, 24.9),
+        valid_range = (-math.inf, math.inf),
         description = (
             "Shape factor for the response of crop Water Productivity to soil fertility stress",
             "Response of crop Water Productivity is not considered"
@@ -388,7 +421,7 @@ CROP_PARAMETER_DICT = {
     "ShapeCDecline" : _ContinuousCropParameter(
         name = "ShapeCDecline",
         datatype = float,
-        valid_range = (-math.inf, 24.9),
+        valid_range = (-math.inf, math.inf),
         description = (
             "Shape factor for the response of decline of canopy cover to soil fertility stress",
             "Response of decline of canopy cover is not considered"
@@ -593,7 +626,7 @@ CROP_PARAMETER_DICT = {
             1: "Calendar Days: from transplanting to recovered transplant",
             -9: "Calendar Days: from regrowth to recovering"
         },
-        depends_on = "Planting"
+        depends_on = ("Planting",)
     ),
     "DaysToMaxRooting" : _ContinuousCropParameter(
         name = "DaysToMaxRooting",
@@ -604,7 +637,7 @@ CROP_PARAMETER_DICT = {
             1: "Calendar Days: from transplanting to maximum rooting depth", # Transplant
             -9: "Calendar Days: from regrowth to maximum rooting depth"       # Regrowth
         },
-        depends_on = "Planting"
+        depends_on = ("Planting",)
     ),
     "DaysToSenescence" : _ContinuousCropParameter(
         name = "DaysToSenescence",
@@ -615,7 +648,7 @@ CROP_PARAMETER_DICT = {
             1: "Calendar Days: from transplanting to start senescence",
             -9: "Calendar Days: from regrowth to start senescence"
         },
-        depends_on = "Planting"
+        depends_on = ("Planting",)
     ),
     "DaysToHarvest" : _ContinuousCropParameter(
         name = "DaysToHarvest",
@@ -626,7 +659,7 @@ CROP_PARAMETER_DICT = {
             1: "Calendar Days: from transplanting to maturity",
             -9: "Calendar Days: from regrowth to maturity"
         },
-        depends_on = "Planting"
+        depends_on = ("Planting",)
     ),
     "DaysToFlowering" : _ContinuousCropParameter(
         name = "DaysToFlowering",
@@ -656,6 +689,7 @@ CROP_PARAMETER_DICT = {
     ),
     "DeterminancyLinked" : _DiscreteCropParameter(
         name = "DeterminancyLinked",
+        valid_range = (0, 1),
         description = {
             0: "Crop determinancy unlinked with flowering",
             1: "Crop determinancy linked with flowering"
@@ -670,7 +704,7 @@ CROP_PARAMETER_DICT = {
             1: "Parameter NO LONGER required",
             4: "Parameter NO LONGER required"
         },
-        depends_on = "subkind",
+        depends_on = ("subkind",),
         required = False,
         missing_value = -9
     ),
@@ -700,7 +734,7 @@ CROP_PARAMETER_DICT = {
                 "Building up of Harvest Index - Not Applicable"
             )
         },
-        depends_on = "subkind",
+        depends_on = ("subkind",),
         required = False
     ),
     "WP" : _ContinuousCropParameter(
@@ -736,7 +770,7 @@ CROP_PARAMETER_DICT = {
             "default" : "Possible increase (%) of HI due to water stress before flowering",
             3: "Possible increase (%) of HI due to water stress before start of yield formation"
         },
-        depends_on = "HIincrease"
+        depends_on = ("subkind",)
     ),
     "aCoeff" : _ContinuousCropParameter(
         name = "aCoeff",
@@ -777,7 +811,9 @@ CROP_PARAMETER_DICT = {
             1: "GDDays: from transplanting to recovered transplant",
             -9: "GDDays: from regrowth to recovering"
         },
-        depends_on = "Planting"
+        depends_on = ("Planting",),
+        required = False,
+        missing_value = -9
     ),
     "GDDaysToMaxRooting" : _ContinuousCropParameter(
         name = "GDDaysToMaxRooting",
@@ -788,10 +824,12 @@ CROP_PARAMETER_DICT = {
             1: "GDDays: from transplanting to maximum rooting depth",
             -9: "GDDays: from regrowth to maximum rooting depth"
         },
-        depends_on = "Planting"
+        depends_on = ("Planting",),
+        required = False,
+        missing_value = -9
     ),
-    "Senescence" : _ContinuousCropParameter(
-        name = "Senescence",
+    "GDDaysToSenescence" : _ContinuousCropParameter(
+        name = "GDDaysToSenescence",
         datatype = int,
         valid_range = (-math.inf, math.inf),
         description = {
@@ -799,10 +837,12 @@ CROP_PARAMETER_DICT = {
             1: "GDDays: from transplanting to start senescence",
             -9: "GDDays: from regrowth to start senescence"
         },
-        depends_on = "Planting"
+        depends_on = ("Planting",),
+        required = False,
+        missing_value = -9
     ),
-    "Harvest" : _ContinuousCropParameter(
-        name = "Harvest",
+    "GDDaysToHarvest" : _ContinuousCropParameter(
+        name = "GDDaysToHarvest",
         datatype = int,
         valid_range = (-math.inf, math.inf),
         description = {
@@ -810,7 +850,9 @@ CROP_PARAMETER_DICT = {
             1: "GDDays: from transplanting to maturity",
             -9: "GDDays: from regrowth to maturity"
         },
-        depends_on = "Planting"
+        depends_on = ("Planting",),
+        required = False,
+        missing_value = -9
     ),
     "GDDaysToFlowering" : _ContinuousCropParameter(
         name = "GDDaysToFlowering",
@@ -830,33 +872,43 @@ CROP_PARAMETER_DICT = {
                 3: "GDDays: from regrowth to start yield formation"
             }
         },
-        depends_on = ("Planting", "subkind")
+        depends_on = ("Planting", "subkind"),
+        required = False,
+        missing_value = -9
     ),
     "GDDLengthFlowering" : _ContinuousCropParameter(
         name = "GDDLengthFlowering",
         datatype = int,
         valid_range = (0, math.inf),
-        description = "Length of the flowering stage (growing degree days)"
+        description = "Length of the flowering stage (growing degree days)",
+        required = False,
+        missing_value = -9
     ),
     "GDDCGC" : _ContinuousCropParameter(
         name = "GDDCGC",
         datatype = float,
         valid_range = (-math.inf, math.inf),
         description = "CGC for GGDays: Increase in canopy cover (in fraction soil cover per growing-degree day)",
-        scale = 6
+        scale = 6,
+        required = False,
+        missing_value = -9
     ),
     "GDDCDC" : _ContinuousCropParameter(
         name = "GDDCDC",
         datatype = float,
         valid_range = (-math.inf, math.inf),
         description = "CDC for GGDays: Decrease in canopy cover (in fraction per growing-degree day)",
-        scale = 6
+        scale = 6,
+        required = False,
+        missing_value = -9
     ),
     "GDDaysToHIo" : _ContinuousCropParameter(
         name = "GDDaysToHIo",
         datatype = int,
         valid_range = (0, math.inf),
-        description = "GDDays: building-up of Harvest Index during yield formation"
+        description = "GDDays: building-up of Harvest Index during yield formation",
+        required = False,
+        missing_value = -9
     ),
     "DryMatter" : _ContinuousCropParameter(
         name = "DryMatter",
@@ -873,10 +925,11 @@ CROP_PARAMETER_DICT = {
             "default": "Minimum effective rooting depth (m) in first year - required only in case of regrowth"
         },
         scale = 2,
-        depends_on = "sukind"
+        depends_on = ("subkind",)
     ),
     "SownYear1" : _DiscreteCropParameter(
         name = "SownYear1",
+        valid_range = (0, 1),
         description = {
             4: {
                 1: "Crop is sown in 1st year (for perennials)",
@@ -887,10 +940,11 @@ CROP_PARAMETER_DICT = {
                 0: "Crop is transplanted in 1st year - required only in the case of regrowth"
             }
         },
-        depends_on = "subkind"
+        depends_on = ("subkind",)
     ),
     "Assimilates_On" : _DiscreteCropParameter(
         name = "Assimilates_On",
+        valid_range = (0, 1),
         description = {
             0 : "Transfer of assimilates from above ground parts to root system is NOT considered",
             1 : "Transfer of assimilates from above ground parts to root system is considered"
@@ -898,6 +952,7 @@ CROP_PARAMETER_DICT = {
     ),
     "Assimilates_Period" : _DiscreteCropParameter(
         name = "Assimilates_On",
+        valid_range = (0, 1),
         description = {
             0 : "Number of days at end of season during which assimilates are stored in root system",
             1 : "Number of days at end of season during which assimilates are stored in root system"
@@ -905,6 +960,7 @@ CROP_PARAMETER_DICT = {
     ),
     "Assimilates_Stored" : _DiscreteCropParameter(
         name = "Assimilates_On",
+        valid_range = (0, 1),
         description = {
             0 : "Percentage of assimilates transferred to root system at last day of season",
             1 : "Percentage of assimilates transferred to root system at last day of season"
@@ -912,6 +968,7 @@ CROP_PARAMETER_DICT = {
     ),
     "Assimilates_Mobilized" : _DiscreteCropParameter(
         name = "Assimilates_On",
+        valid_range = (0, 1),
         description = {
             0 : "Percentage of stored assimilates transferred to above ground parts in next season",
             1 : "Percentage of stored assimilates transferred to above ground parts in next season"
@@ -1077,16 +1134,64 @@ class CropParameterSet:
 
     def set_default_values(self):
         for _, param_obj in self.CROP_PARAMETERS.items():
-            print(param_obj.name)
-            param_obj.set_value(
+            param_obj.set_default_value(
                 self._default_parameter_set[param_obj.name]
             )
+        self.update_planting_subkind()
 
     def set_value(self, name, value):
         try:
             self.CROP_PARAMETERS[name].set_value(value)
         except KeyError:
             raise ValueError
+        self.update_planting()
+        self.update_subkind()
+
+    def update_planting(self):
+        self.planting = self.CROP_PARAMETERS['Planting'].value
+
+    def update_planting_subkind(self):
+        self.planting_subkind = {
+            'Planting' : self.CROP_PARAMETERS['Planting'].value,
+            'subkind' : self.CROP_PARAMETERS['subkind'].value,
+        }
+
+    def update_subkind(self):
+        self.subkind = self.CROP_PARAMETERS['subkind'].value
+
+    def get_description(self, name):
+        param_obj = self.CROP_PARAMETERS[name]
+        description = param_obj.description
+        depends_on = param_obj.depends_on
+
+        if depends_on is not None:
+            if len(depends_on) == 2:
+                value1, value2 = tuple([self.planting_subkind[key] for key in depends_on])
+                try:
+                    description = description[value1]
+                except KeyError:
+                    description = description['default']
+                try:
+                    description = description[value2]
+                except KeyError:
+                    description = description['default']
+            else:
+                value1 = self.planting_subkind[depends_on[0]]
+                try:
+                    description = description[value1]
+                except KeyError:
+                    description = description['default']
+        return description
+
+    def get_value(self, name):
+        return self.CROP_PARAMETERS[name].value
+
+    def file_header(self):
+        pass
 
     def write(self, filename):
-        pass
+        for param in self.CROP_PARAMETER_ORDER:
+            if param is not None:
+                description = get_description(param)
+                value = get_value(param)
+                # And so on
