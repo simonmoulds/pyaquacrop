@@ -88,10 +88,51 @@ class _CropParameter(Parameter):
 
     def set_value(self, value):
         self.check_value(value)
+        # self.set_value_description()
 
     def set_default_value(self, default_value):
+        if self.datatype is int:
+            default_value = int(default_value)
+        else:
+            default_value = float(default_value)
+
         self._default_value = default_value
         self._value = default_value
+        # self.set_value_description()
+
+    def set_value_description(self, planting = None, subkind = None):
+        planting_subkind = {'Planting' : planting, 'subkind' : subkind}
+        description = self._description
+        if self.depends_on is not None:
+            if len(self.depends_on) == 2:
+                value1, value2 = tuple([planting_subkind[key] for key in self.depends_on])
+                try:
+                    description = description[value1]
+                except KeyError:
+                    description = description['default']
+                try:
+                    description = description[value2]
+                except KeyError:
+                    description = description['default']
+            else:
+                value1 = planting_subkind[self.depends_on[0]]
+                try:
+                    description = description[value1]
+                except KeyError:
+                    description = description['default']
+        if self.discrete:
+            description = description[self.value]
+
+        if not self.required and isinstance(description, tuple):
+            if self.value == self.missing_value:
+                description = description[1]
+            else:
+                description = description[0]
+        self._value_description = description
+
+    @property
+    def value_description(self):
+        return self._value_description
 
     @property
     def value(self):
@@ -104,6 +145,10 @@ class _CropParameter(Parameter):
     @property
     def datatype(self):
         return self._datatype
+
+    @property
+    def discrete(self):
+        return self._discrete
 
     @property
     def default_value(self):
@@ -139,8 +184,10 @@ class _CropParameter(Parameter):
             fmt = f"{self.value:d}"
         else:
             fmt = f"{self.value:.{self.scale}f}"
-        num = _format_crop_parameter()
-        return num + ' : ' + self.description
+        num = _format_crop_parameter(fmt)
+        # return num + ' : ' + self.description
+        return num
+
 
 
 class _DiscreteCropParameter(_CropParameter):
@@ -212,6 +259,14 @@ class _ContinuousCropParameter(_CropParameter):
             if (value < self.valid_range[0]) | (value > self.valid_range[1]):
                 raise ValueError
             self.value = value
+
+    def set_description(self, planting = None, subkind = None):
+        description = self.select_description(planting, subkind)
+        description = description[self.value]
+        if self.required and self.value == self.missing_value:
+            if isinstance(description, tuple):
+                description = description[1]
+        return description
 
 # The idea here is to have a dictionary of all crop parameters which can then be organised properly in a CropParameterDict class
 CROP_PARAMETER_DICT = {
@@ -1137,7 +1192,18 @@ class CropParameterSet:
             param_obj.set_default_value(
                 self._default_parameter_set[param_obj.name]
             )
-        self.update_planting_subkind()
+        self.update_planting()
+        self.update_subkind()
+        self.update_value_descriptions()
+
+    def update_value_descriptions(self):
+        for _, param_obj in self.CROP_PARAMETERS.items():
+            param_obj.set_default_value(
+                self._default_parameter_set[param_obj.name]
+            )
+            param_obj.set_value_description(
+                self.planting, self.subkind
+            )
 
     def set_value(self, name, value):
         try:
@@ -1146,45 +1212,16 @@ class CropParameterSet:
             raise ValueError
         self.update_planting()
         self.update_subkind()
+        self.update_value_descriptions()
 
     def update_planting(self):
         self.planting = self.CROP_PARAMETERS['Planting'].value
 
-    def update_planting_subkind(self):
-        self.planting_subkind = {
-            'Planting' : self.CROP_PARAMETERS['Planting'].value,
-            'subkind' : self.CROP_PARAMETERS['subkind'].value,
-        }
-
     def update_subkind(self):
         self.subkind = self.CROP_PARAMETERS['subkind'].value
 
-    def get_description(self, name):
-        param_obj = self.CROP_PARAMETERS[name]
-        description = param_obj.description
-        depends_on = param_obj.depends_on
-
-        if depends_on is not None:
-            if len(depends_on) == 2:
-                value1, value2 = tuple([self.planting_subkind[key] for key in depends_on])
-                try:
-                    description = description[value1]
-                except KeyError:
-                    description = description['default']
-                try:
-                    description = description[value2]
-                except KeyError:
-                    description = description['default']
-            else:
-                value1 = self.planting_subkind[depends_on[0]]
-                try:
-                    description = description[value1]
-                except KeyError:
-                    description = description['default']
-        return description
-
-    def get_value(self, name):
-        return self.CROP_PARAMETERS[name].value
+    def get_str_format(self, name):
+        return self.CROP_PARAMETERS[name].str_format
 
     def file_header(self):
         pass
@@ -1192,6 +1229,6 @@ class CropParameterSet:
     def write(self, filename):
         for param in self.CROP_PARAMETER_ORDER:
             if param is not None:
-                description = get_description(param)
-                value = get_value(param)
-                # And so on
+                description = self.CROP_PARAMETERS[param].value_description
+                num = self.CROP_PARAMETERS[param].str_format
+                print(num + ' : ' + description)
