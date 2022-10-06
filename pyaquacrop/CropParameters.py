@@ -9,18 +9,20 @@ from abc import ABC, abstractmethod, abstractproperty
 
 from constants import AQUACROP_VERSION
 
+
 def _format_crop_parameter(number_str, pad_before=6, pad_after=7):
     try:
         whole, frac = number_str.split(".")
     except ValueError:
         whole = number_str.split(".")[0]
         frac = None
-    pad_before = pad_before - len(whole)
-    whole = " " * (pad_before - len(whole)) + whole
+    pad_before_adj = max(pad_before - len(whole), 2) # Leave two spaces at a minimum
+    whole = " " * pad_before_adj + whole
+    pad_after_adj = min(pad_after, (pad_after + pad_before - len(whole)))
     if frac is None:
-        number_str = whole + " " * (pad_after + 1)
+        number_str = whole + " " * (pad_after_adj + 1)
     else:
-        frac = "." + frac + " " * (pad_after - len(frac))
+        frac = "." + frac + " " * (pad_after_adj - len(frac))
         number_str = whole + frac
     return number_str
 
@@ -29,8 +31,9 @@ def _load_default_data():
     res = pkgutil.get_data(
         __name__, 'data/default_crop_parameters.pkl'
     )
-    data = pickle.loads(DEFAULT_CROP_PARAMETERS_RES)
+    data = pickle.loads(res)
     return data
+
 
 class Parameter(ABC):
 
@@ -292,13 +295,13 @@ CROP_PARAMETER_DICT = {
         valid_range = (0, 1, -9),
         description = {
             "default" : {
-                0: "Crop is sown",
-                1: "Crop is transplanted",
+                1: "Crop is sown",
+                0: "Crop is transplanted",
                 -9: "Crop is regrowth"
             },
             4: {
-                0: "Crop is sown in first year",
-                1: "Crop is transplanted in first year",
+                1: "Crop is sown in first year",
+                0: "Crop is transplanted in first year",
                 -9: "Crop is regrowth"
             },
         },
@@ -347,10 +350,10 @@ CROP_PARAMETER_DICT = {
     # ################################# #
     # required growing degree days to   #
     # complete the crop cycle (is       #
-    # identical as to maturity)         #
+    # identical to maturity)            #
     # ################################# #
-    "GDDaysToHarvest": _ContinuousCropParameter(
-        name = "GDDaysToHarvest",
+    "GDDaysToHarvest0": _ContinuousCropParameter(
+        name = "GDDaysToHarvest0",
         datatype = int,
         valid_range = [-math.inf, math.inf],
         description = "Total length of crop cycle in growing degree-days"
@@ -1056,7 +1059,7 @@ CROP_PARAMETER_ORDER = (
     "pMethod",
     "Tbase",
     "Tupper",
-    "GDDaysToHarvest",
+    "GDDaysToHarvest0",
     "pLeafDefUL",
     "pLeafDefLL",
     "KsShapeFactorLeaf",
@@ -1174,7 +1177,8 @@ class CropParameterSet:
     CROP_PARAMETER_ORDER = CROP_PARAMETER_ORDER
     DEFAULT_CROP_PARAMETERS = _load_default_data()
     VALID_CROP_TYPES = CROP_TYPES + GDD_CROP_TYPES
-    def __init__(self, crop_name):
+    def __init__(self,
+                 crop_name):
 
         # Check crop_name is valid
         self.crop_name = crop_name
@@ -1223,12 +1227,24 @@ class CropParameterSet:
     def get_str_format(self, name):
         return self.CROP_PARAMETERS[name].str_format
 
-    def file_header(self):
-        pass
+    @property
+    def default_header(self):
+        return 'Crop %s file' % self.crop_name
 
-    def write(self, filename):
-        for param in self.CROP_PARAMETER_ORDER:
-            if param is not None:
-                description = self.CROP_PARAMETERS[param].value_description
-                num = self.CROP_PARAMETERS[param].str_format
-                print(num + ' : ' + description)
+    def write(self, filename, header = None):
+        if header is None:
+            header = self.default_header
+        version = _format_crop_parameter(AQUACROP_VERSION)
+        protected = _format_crop_parameter('0')
+        with open(filename, 'w') as f:
+            f.write(header + os.linesep)
+            f.write(version + ' : AquaCrop Version' + os.linesep)
+            f.write(protected + ' : File protected' + os.linesep)
+            for param in self.CROP_PARAMETER_ORDER:
+                if param is not None:
+                    description = self.CROP_PARAMETERS[param].value_description
+                    num = self.CROP_PARAMETERS[param].str_format
+                else:
+                    description = 'dummy - no longer applicable'
+                    num = _format_crop_parameter('-9')
+                f.write(num + ' : ' + description + os.linesep)

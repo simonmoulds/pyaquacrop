@@ -19,7 +19,7 @@ CROP_PARAMETER_NAMES = [
     "pMethod",
     "Tbase",
     "Tupper",
-    "GDDaysToHarvest",
+    "GDDaysToHarvest0",
     "pLeafDefUL",
     "pLeafDeLL",
     "KsShapeFactor",
