@@ -273,7 +273,6 @@ class _ContinuousCropParameter(_CropParameter):
 
 # The idea here is to have a dictionary of all crop parameters which can then be organised properly in a CropParameterDict class
 CROP_PARAMETER_DICT = {
-
     # ################################# #
     # Crop type                         #
     # ################################# #
@@ -1034,23 +1033,106 @@ CROP_PARAMETER_DICT = {
     )
 }
 
-FORAGE_CROP_PARAMETER_ORDER = (
-    "GenerateOnset",
-    "OnsetFirstDay",
-    "OnsetFirstMonth",
-    "OnsetLengthSearchPeriod",
-    "OnsetThresholdValue",
-    "OnsetPeriodValue",
-    "OnsetOccurrence",
-    "GenerateEnd",
-    "EndLastDay",
-    "EndLastMonth",
-    "ExtraYears",
-    "EndLengthSearchPeriod",
-    "EndThresholdValue",
-    "EndPeriodValue",
-    "EndOccurrence"
-)
+ONSET_CROP_PARAMETER_DICT = {
+    "GenerateOnset" : _DiscreteCropParameter(
+        name = "GenerateOnset",
+        valid_range = (0, 12, 13),
+        description = {
+            0: "Onset fixed on a specific day",
+            12: "Criterion: mean air temperature",
+            13: "Criterion: growing-degree days"
+        }
+    ),
+    "OnsetFirstDay" : _ContinuousCropParameter(
+        name = "OnsetFirstDay",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = "First Day for the time window (Restart of growth)"
+    ),
+    "OnsetFirstMonth" : _ContinuousCropParameter(
+        name = "OnsetFirstMonth",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = "First Month for the time window (Restart of growth)"
+    ),
+    "OnsetLengthSearchPeriod" : _ContinuousCropParameter(
+        name = "OnsetLengthSearchPeriod",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = "Length (days) of the time window (Restart of growth)"
+    ),
+    "OnsetThresholdValue" : _ContinuousCropParameter(
+        name = "OnsetThresholdValue",
+        datatype = float,
+        valid_range = (0, math.inf),
+        description = "Threshold for the Restart criterion: Growing-degree days",
+        scale = 1
+    ),
+    "OnsetPeriodValue" : _ContinuousCropParameter(
+        name = "OnsetPeriodValue",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = "Number of successive days for the Restart criterion"
+    ),
+    "OnsetOccurrence" : _ContinuousCropParameter(
+        name = "OnsetOccurrence",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = "Number of occurrences before the Restart criterion applies"
+    ),
+    "GenerateEnd" : _DiscreteCropParameter(
+        name = "GenerateEnd",
+        valid_range = (),
+        description = {
+            0: "End is fixed on a specific day",
+            62: "Criterion: mean air temperature",
+            63: "Criterion: growing-degree days"
+        }
+    ),
+    "EndLastDay" : _ContinuousCropParameter(
+        name = "EndLastDay",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = "Last Day for the time window (End of growth)"
+    ),
+    "EndLastMonth" : _ContinuousCropParameter(
+        name = "EndLastMonth",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = "Last Month for the time window (End of growth)"
+    ),
+    "ExtraYears" : _ContinuousCropParameter(
+        name = "ExtraYears",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = "Number of years to add to the Onset year"
+    ),
+    "EndLengthSearchPeriod" : _ContinuousCropParameter(
+        name = "EndLengthSearchPeriod",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = "Length (days) of the time window (End of growth)"
+    ),
+    "EndThresholdValue" : _ContinuousCropParameter(
+        name = "EndThresholdValue",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = "Threshold for the End criterion: Growing-degree days",
+        scale = 1
+    ),
+    "EndPeriodValue" : _ContinuousCropParameter(
+        name = "EndPeriodValue",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = "Number of successive days for the End criterion"
+    ),
+    "EndOccurrence" : _ContinuousCropParameter(
+        name = "EndOccurrence",
+        datatype = int,
+        valid_range = (0, math.inf),
+        description = "Number of occurrences before the End criterion applies"
+    )
+}
 
 CROP_PARAMETER_ORDER = (
     "subkind",
@@ -1136,6 +1218,24 @@ CROP_PARAMETER_ORDER = (
     "Assimilates_Mobilized",
 )
 
+ONSET_CROP_PARAMETER_ORDER = (
+    "GenerateOnset",
+    "OnsetFirstDay",
+    "OnsetFirstMonth",
+    "OnsetLengthSearchPeriod",
+    "OnsetThresholdValue",
+    "OnsetPeriodValue",
+    "OnsetOccurrence",
+    "GenerateEnd",
+    "EndLastDay",
+    "EndLastMonth",
+    "ExtraYears",
+    "EndLengthSearchPeriod",
+    "EndThresholdValue",
+    "EndPeriodValue",
+    "EndOccurrence"
+)
+
 CROP_TYPES = (
     "Barley",
     "Cotton",
@@ -1172,9 +1272,11 @@ GDD_CROP_TYPES = (
 
 # This should perhaps inherit dictionary with an additional write method
 class CropParameterSet:
-
+    # Make these constants that exist outside class
     CROP_PARAMETERS = CROP_PARAMETER_DICT
+    ONSET_CROP_PARAMETERS = ONSET_CROP_PARAMETER_DICT
     CROP_PARAMETER_ORDER = CROP_PARAMETER_ORDER
+    ONSET_CROP_PARAMETER_ORDER = ONSET_CROP_PARAMETER_ORDER
     DEFAULT_CROP_PARAMETERS = _load_default_data()
     VALID_CROP_TYPES = CROP_TYPES + GDD_CROP_TYPES
     def __init__(self,
@@ -1190,6 +1292,7 @@ class CropParameterSet:
         self.crop_parameter_names = tuple(self.CROP_PARAMETERS.keys())
         # Now that we have verified the crop type, pull default values
         self.set_default_values()
+        # self.update_value_descriptions()
 
     def set_default_values(self):
         for _, param_obj in self.CROP_PARAMETERS.items():
@@ -1198,13 +1301,25 @@ class CropParameterSet:
             )
         self.update_planting()
         self.update_subkind()
+
+        if self.subkind == 4:
+            for _, param_obj in self.ONSET_CROP_PARAMETERS.items():
+                param_obj.set_default_value(
+                    self._default_parameter_set[param_obj.name]
+                )
+
         self.update_value_descriptions()
 
     def update_value_descriptions(self):
-        for _, param_obj in self.CROP_PARAMETERS.items():
-            param_obj.set_default_value(
-                self._default_parameter_set[param_obj.name]
-            )
+        if self.subkind == 4:
+            param_dict = {**self.CROP_PARAMETERS, **self.ONSET_CROP_PARAMETERS}
+        else:
+            param_dict = self.CROP_PARAMETERS
+
+        for _, param_obj in param_dict.items():
+            # param_obj.set_default_value(
+            #     self._default_parameter_set[param_obj.name]
+            # )
             param_obj.set_value_description(
                 self.planting, self.subkind
             )
@@ -1248,3 +1363,17 @@ class CropParameterSet:
                     description = 'dummy - no longer applicable'
                     num = _format_crop_parameter('-9')
                 f.write(num + ' : ' + description + os.linesep)
+
+            if self.subkind == 4:
+                # Add internal crop calendar
+                f.write(os.linesep)
+                f.write(" Internal crop calendar" + os.linesep)
+                f.write(" ======================" + os.linesep)
+                for param in self.ONSET_CROP_PARAMETER_ORDER:
+                    if param is not None:
+                        description = self.ONSET_CROP_PARAMETERS[param].value_description
+                        num = self.ONSET_CROP_PARAMETERS[param].str_format
+                    else:
+                        description = 'dummy - no longer applicable'
+                        num = _format_crop_parameter('-9')
+                    f.write(num + ' : ' + description + os.linesep)
