@@ -6,30 +6,6 @@ import math
 from utils import format_parameter
 
 
-# def _irrigation_header(start_day=1, start_month=1, start_year=1901):
-
-#     header = (
-#         "Irrigation schedule"
-#         + os.linesep
-#         + format_parameter("7.0", 6, 4)
-#         + ": AquaCrop Version"
-#         + os.linesep
-#         + format_parameter("2", 6, 4)
-#         + ": variable groundwater table"
-#         + os.linesep
-#         + format_parameter(str(int(start_day)), 6, 4)
-#         + ": first day of observations"
-#         + os.linesep
-#         + format_parameter(str(int(start_month)), 6, 4)
-#         + ": first month of observations"
-#         + os.linesep
-#         + format_parameter(str(int(start_year)), 6, 4)
-#         + ": first year of observations (1901 if not linked to a specific year)"
-#         + os.linesep
-#         + os.linesep
-#     )
-#     return header
-
 IRRI_PARAMETER_DICT = {
     "IrriMethod": DiscreteParameter(
         name="IrriMethod",
