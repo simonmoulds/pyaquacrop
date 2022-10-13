@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Optional, Union
+from typing import Optional, Union, Any
 from abc import ABC, abstractmethod, abstractproperty
 
 from utils import format_parameter
@@ -47,10 +47,12 @@ class Parameter(BaseParameter):
         scale: Optional[int] = 2,
         required: bool = True,
         missing_value: int = -9,
+        default_value: Optional[Any] = None
     ):
 
-        self._value = None
-        self._default_value = None
+        # self._value = None
+        self.set_default_value(default_value)
+        # self._default_value = None
         self._name = name
         self._datatype = datatype
         self._discrete = discrete
@@ -66,14 +68,22 @@ class Parameter(BaseParameter):
         # self.set_value_description()
 
     def set_default_value(self, default_value):
-        if self.datatype is int:
-            default_value = int(default_value)
+        if default_value is None:
+            self._default_value = None
+            self._value = None
         else:
-            default_value = float(default_value)
+            # if not isinstance(default_value, self.datatype):
+            #     raise ValueError() # FIXME this may be too restrictive
+            # default_value = self.datatype(default_value)
+            # FIXME this smells
+            if self.datatype is int:
+                default_value = int(default_value)
+            elif self.datatype is float:
+                default_value = float(default_value)
 
-        self._default_value = default_value
-        self._value = default_value
-        # self.set_value_description()
+            self._default_value = default_value
+            self._value = default_value
+            # self.set_value_description()
 
     def set_value_description(self, value_dict: Optional[dict] = None):
         description = self._description

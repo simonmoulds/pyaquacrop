@@ -17,12 +17,14 @@ IRRI_PARAMETER_DICT = {
             4: "Furrow",
             5: "Drip"
         },
+        default_value = int(1)
     ),
     "IrriFwInSeason": ContinuousParameter(
         name="IrriFwInSeason",
         datatype=int,
         valid_range=(0, 100),
-        description="Percentage of soil surface wetted by irrigation"
+        description="Percentage of soil surface wetted by irrigation",
+        default_value=int(100)
     ),
     "IrriMode": DiscreteParameter(
         name="IrriMode",
@@ -32,7 +34,7 @@ IRRI_PARAMETER_DICT = {
             1: "Specify irrigation events",
             2: "Generate of an irrigation schedule",
             3: "Determine net irrigation water requirements"
-        }
+        },
     ),
     # ################################# #
     # Irrigation schedule               #
@@ -69,8 +71,28 @@ IRRI_PARAMETER_DICT = {
     # ################################# #
     "PercRAW": ContinuousParameter(
         name="PercRAW",
-        datatype:int,
+        datatype=int,
         valid_range=(0, 100),
         description="Depletion (% RAW) threshold"
     )
 }
+
+
+class IrrigationParameterSet:
+
+    def __init__(self,
+                 config):
+
+        # Default is not to provide an irrigation file,
+        # in which case rainfed is assumed
+        # TODO we need to work out a way for users to provide either a single value or a map of input values [same goes for crop parameters etc.]
+        pass
+
+    def set_default_values(self):
+        pass
+
+    def update_value_description(self):
+        pass
+
+    def set_value(self):
+        pass
