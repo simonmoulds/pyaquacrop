@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 
 import os
-import toml
+import tomli
 import requests
 import netCDF4
 import xarray
+import metpy
 import click
 from datetime import date
 from decimal import Decimal
 
-# TESTING
 Prec = xarray.open_dataarray(
     os.path.join(
         "..",
@@ -47,7 +47,6 @@ u_10 = xarray.open_dataarray(
         "download_daily_mean_10m_u_component_of_wind_2010_01.nc",
     )
 )
-
 v_10 = xarray.open_dataarray(
     os.path.join(
         "..",
@@ -55,7 +54,6 @@ v_10 = xarray.open_dataarray(
         "download_daily_mean_10m_v_component_of_wind_2010_01.nc",
     )
 )
-
 P = xarray.open_dataarray(
     os.path.join(
         "..",
@@ -63,7 +61,6 @@ P = xarray.open_dataarray(
         "download_daily_mean_surface_pressure_2010_01.nc",
     )
 )
-
 R_s = xarray.open_dataarray(
     os.path.join(
         "..",
@@ -82,7 +79,6 @@ T_dew = T_dew.metpy.convert_units("degC").metpy.dequantify()
 R_s = R_s.metpy.convert_units("MJ m**-2").metpy.dequantify()
 # Multiply R_s by 24 to convert average hourly MJ m-2 to total daily MJ m-2
 R_s *= 24
-
 
 def _fao56_eq8(P):
     return 0.665 * 10 ** -3 * P
@@ -180,8 +176,8 @@ e_a = _fao56_eq11(T_dew)
 # Slope of vapor pressure curve [kPa degC**-1]
 Delta = _fao56_eq13(T_mean)
 
-# # FOR TESTING:
-# z_msl = 50.
+# FOR TESTING:
+z_msl = 50.
 
 # Radiation components
 Day = T_min["time.dayofyear"]
@@ -202,185 +198,161 @@ G = _fao56_eq42()
 # Penman Monteith equation
 ETo = _fao56_eq6(Delta, R_n, G, gamma, T_mean, u_2, e_s, e_a)
 
-# How to get elevation data?
-# - Have a 0.1 degree product as part of the package [GMTED2010]
-# - Optionally allow the user to supply a list of points +
-#   elevation values [this would be ideal in the case of TAHMO
-
-# Write AquaCrop input
-
-LINESEP = os.linesep
-
-# Meteo input: Prec, T_min, T_max, ETref
-
-
-def _climate_data_header(start_date: pd.Timestamp) -> str:
-    day, month, year = start_date.day, start_date.month, start_date.year
-    header = (
-        "This is a test - put something more meaningful here"
-        + LINESEP
-        + str(1).rjust(5)
-        + "  : Daily records"
-        + LINESEP
-        + str(day).rjust(5)
-        + "  : First day of record"
-        + LINESEP
-        + str(month).rjust(5)
-        + "  : First month of record"
-        + LINESEP
-        + str(year).rjust(5)
-        + "  : First year of record"
-        + LINESEP
-        + LINESEP
+# Test Domain object
+mask = Prec.values[0,]
+mask = ~np.isnan(mask) * 1
+lat = Prec.lat.values
+lon = Prec.lon.values
+ds = xarray.Dataset(
+    data_vars=dict(
+        mask=(["lat", "lon"], mask),
+    ),
+    coords=dict(
+        lat=(["lat"], lat),
+        lon=(["lon"], lon)
     )
-    return header
+)
+import pyaquacrop.Domain
+importlib.reload(pyaquacrop.Domain)
+from pyaquacrop.Domain import Domain
+from pyaquacrop.Weather import MaxTemperature
+
+# We can flatten the dataset as follows:
+ds_1d = ds.stack(xy=[...]) #, create_index=False)
+# lats = ds_1d.lat.values
+# lons = ds_1d.lon.values
+# data = ds_1d.mask.values
+# FIXME - always represent domain as 1D xarray
+domain = Domain(ds_1d)
+
+# TODO add test config, create Config class, create MaxTemperature object
+configfile = 'tests/testdata/era5_config.toml'
+import pyaquacrop.Config
+importlib.reload(pyaquacrop.Config)
+from pyaquacrop.Config import Configuration
+config = Configuration(configfile)
+
+modelgrid = os.path.join(config.configpath, config.MODEL_GRID['mask'])
+ds = xarray.open_dataset(modelgrid)
+domain = Domain(ds)
+pt = (5.15256672, -1.88154445)  # lat, lon
+
+# TODO create a Tmax object and try to create AquaCrop input
+
+# from sklearn.neighbors import BallTree
+# from math import radians
+# earth_radius = 6371000 # meters in earth
+# test_radius = np.inf #1300000 # meters
+# test_points = [[32.027240,-81.093190],[41.981876,-87.969982]]
+# test_points_rad = np.array([[radians(x[0]), radians(x[1])] for x in test_points ])
+# tree = BallTree(test_points_rad, metric = 'haversine')
+# ind,results = tree.query_radius(test_points_rad, r=test_radius/earth_radius,
+# return_distance  = True)
+# print(ind)
+# print(results * earth_radius/1000)
+
+from math import radians, cos, sin, asin, sqrt, degrees, atan2
+X = [32.027240,-81.093190]
+Y = [41.981876,-87.969982]
+# Xrad = [radians(_) for _ in X]
+# Yrad = [radians(_) for _ in Y]
+# from sklearn.metrics.pairwise import haversine_distances
+# dist = haversine_distances([Xrad, Yrad])
+# dist *= 6371000 / 1000
+def distance_haversine(p1, p2):
+    """
+    Calculate the great circle distance between two points
+    on the earth (specified in decimal degrees)
+    Haversine
+    formula:
+        a = sin²(Δφ/2) + cos φ1 ⋅ cos φ2 ⋅ sin²(Δλ/2)
+                        _   ____
+        c = 2 ⋅ atan2( √a, √(1−a) )
+        d = R ⋅ c
+
+    where   φ is latitude, λ is longitude, R is earth’s radius (mean radius = 6,371km);
+            note that angles need to be in radians to pass to trig functions!
+    """
+    lat1, lon1 = p1
+    lat2, lon2 = p2
+    # for p in [p1, p2]:
+    #     validate_point(p)
+
+    R = 6371 # km - earths's radius
+
+    # convert decimal degrees to radians
+    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+
+    # haversine formula
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a)) # 2 * atan2(sqrt(a), sqrt(1-a))
+    d = R * c
+    return d
+
+dist = distance_haversine(X, Y)
+
+# idx = pd.MultiIndex.from_arrays(arrays=[lons, lats], names=["lon", "lat"])
+# s = pd.Series(data=data, index=idx)
+# da = xarray.DataArray.from_series()
 
 
-def _soil_data_header():
-    header = (
-        "This is a test - put something more meaningful here"
-        + LINESEP
-        + "7.0".rjust(5)
-        + "  : AquaCrop Version"
-        + LINESEP
-        + str(int(curve_number)).rjust(5)
-        + "  : CN (Curve Number)"
-        + LINESEP
-        + str(int(readily_evaporable_water)).rjust(5)
-        + "  : Readily evaporable water from top layer (mm)"
-        + LINESEP
-        + str(int(n_horizon)).rjust(5)
-        + "  : Number of soil horizons"
-        + LINESEP
-        + "-9".rjust(5)
-        + "  : N/a"
-        + LINESEP
-        + LINESEP
-    )
+
+# ds_1d = ds_1d.assign_coords(xy=np.array([i for i in range(len(ds_1d.lon.values))]))
+# domain = Domain(ds_1d, is_1d=True, xy_dimname='xy')
+
+# # How to get elevation data?
+# # - Have a 0.1 degree product as part of the package [GMTED2010]
+# # - Optionally allow the user to supply a list of points +
+# #   elevation values [this would be ideal in the case of TAHMO
+
+# # Write AquaCrop input
+
+# # Meteo input: Prec, T_min, T_max, ETref
+
+# def _climate_data_header(start_date: pd.Timestamp) -> str:
+#     day, month, year = start_date.day, start_date.month, start_date.year
+#     header = (
+#         "This is a test - put something more meaningful here"
+#         + os.linesep
+#         + str(1).rjust(5)
+#         + "  : Daily records"
+#         + os.linesep
+#         + str(day).rjust(5)
+#         + "  : First day of record"
+#         + os.linesep
+#         + str(month).rjust(5)
+#         + "  : First month of record"
+#         + os.linesep
+#         + str(year).rjust(5)
+#         + "  : First year of record"
+#         + os.linesep
+#         + os.linesep
+#     )
+#     return header
 
 
-# class Rainfall:
-def _write_rainfall_input_file(
-    x: xarray.DataArray, latitude: float, longitude: float
-) -> None:
-    header = _climate_data_header(x.time.values[0])
-    header = header + "  Total Rain (mm)" + LINESEP + "======================="
-    X = x.sel(lat=latitude, lon=longitude, method="nearest")
-    with open(os.path.join(sub_dir, filename), "w") as f:
-        np.savetxt(f, X, fmt="%.2f", newline=LINESEP, header=header, comments="")
-    return None
+# # class Rainfall:
+# def _write_rainfall_input_file(
+#     x: xarray.DataArray, latitude: float, longitude: float
+# ) -> None:
+#     header = _climate_data_header(x.time.values[0])
+#     header = header + "  Total Rain (mm)" + LINESEP + "======================="
+#     X = x.sel(lat=latitude, lon=longitude, method="nearest")
+#     with open(os.path.join(sub_dir, filename), "w") as f:
+#         np.savetxt(f, X, fmt="%.2f", newline=LINESEP, header=header, comments="")
+#     return None
 
 
-# class SoilProfile:
-def _write_soil_profile_input_file():
-    # This file is read by LoadProfile() in global.f90 L7550
-    # L7617 read(fhandle, *) thickness_temp, SAT_temp, FC_temp, WP_temp, &
-    #                        infrate_temp, penetrability_temp, &
-    #                        gravelm_temp, cra_temp, crb_temp, &
-    #                        description_temp
-    # See https://stackoverflow.com/a/1126064 for an explanation of
-    # Fortran read() statements
-    header = _soil_data_header()
-    header = (
-        header
-        + "  Thickness  Sat   FC    WP     Ksat   Penetrability  Gravel  CRa       CRb           description"
-        + LINESEP
-        + "  ---(m)-   ----(vol %)-----  (mm/day)      (%)        (%)    -----------------------------------------"
-    )
+# sub_dir = "INPUT"
+# try:
+#     os.makedirs(sub_dir)
+# except FileExistsError:
+#     pass
 
-    with open(os.path.join(sub_dir, filename), "w") as f:
-        f.write(header)
-        for i in range(n_horizon):
-            # Add newline
-            f.write(LINESEP)
-            # Formatting taken from L4005 global.f90
-            profile = (
-                "{:8.2f}".format(thickness[i])
-                + "{:8.1f}".format(th_sat[i])
-                + "{:6.1f}".format(th_fc[i])
-                + "{:6.1f}".format(th_wp[i])
-                + "{:8.1f}".format(k_sat[i])
-                + "{:11d}".format(int(penetrability[i]))
-                + "{:10d}".format(int(gravel_content[i]))
-                + "{:14.6f}".format(CRa[i])
-                + "{:10.6f}".format(CRb[i])
-                + profile_description[i][:10]
-            )
-            f.write(profile)
-    return None
-
-
-def _write_crop_calendar_input_file(
-    generate_onset: bool,
-    generate_temp_onset: str,
-    start_search_period_day_nr: int,
-    length_search_period: int,
-    criterion_nr: int,
-):
-
-    # TODO the file contains more information, but it doesn't
-    # look as if any parameters beyond those listed are actually
-    # read from the file [L3253 global.f90]
-
-    # TODO find out default values for the above values
-
-    # It seems from the Fortran code that this is simply used as a flag: if exceeding 10 then GetOnsetTemp = .true. [L3289]
-    if generate_onset & generate_temp_onset:
-        if ~criterion_nr in [12, 13]:
-            raise ValueError()
-    # criterion_nr == 12: TMeanPeriod
-    # criterion_nr == 13: GDDPeriod
-
-    # This file is read by LoadCropCalendar() in global.f90 L3253
-    # I think some of the parameters are actually specified in CRO file
-    # GenerateOn
-    # GenerateTempOn
-    # Criterion [NB undocumented]
-    # StartSearchDayNr
-    # StopSearchDayNr
-    # LengthSearchPeriod
-    crop_calendar = (
-        file_description
-        + LINESEP
-        + "{:12.1f}".format(7)
-        + "  : AquaCrop Version"
-        + LINESEP
-        + "{:10d}".format(int(generate_onset))
-        + "    : TODO"
-        + LINESEP
-        + "{:10d}".format(int(time_window_start))
-        + "    : TODO"
-        + LINESEP
-        + "{:10d}".format(int(time_window_length))
-        + "    : TODO"
-        + LINESEP
-    )
-    return None
-
-
-sub_dir = "INPUT"
-try:
-    os.makedirs(sub_dir)
-except FileExistsError:
-    pass
-
-filename = "Prec.PLU"
-latitude = 8.25
-longitude = 0.25
-_write_rainfall_input_file(Prec, latitude, longitude)
-
-# Soil input
-
-# TESTING
-dz = [4.0]  # m
-th_sat = [41.0]  # %
-th_fc = [22.0]  # %
-th_wp = [10.0]  # %
-k_sat = [1200.0]  # mm/day
-penetrability = [100.0]  # %
-gravel = [0.0]  # %
-CRa = [-0.3232]  # ???
-CRb = [0.219363]  # ???
-description = ["sandy loam"]  # ???
-
-# Crop calendar input
+# filename = "Prec.PLU"
+# latitude = 8.25
+# longitude = 0.25
+# _write_rainfall_input_file(Prec, latitude, longitude)

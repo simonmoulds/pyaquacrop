@@ -1,5 +1,6 @@
 # Raw data 
 data-raw/
+tests/testdata/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

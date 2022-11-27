@@ -8,33 +8,41 @@
 class MaxTemperature:
     def __init__(self, model):
         self.model = model
-        self.filename = model.config.TMAX["filename"]
-        self.nc_varname = model.config.TMAX["varname"]
-        self.is_1d = model.config.TMAX["is_1d"]
-        self.xy_dimname = model.config.TMAX["xy_dimname"]
-        self.factor = model.config.TMAX["factor"]
-        self.offset = model.config.TMAX["offset"]
-        # self.model_varname = 'tmax'
-        # self.dataset_varname = 'tmax_dataset'
+        self.filename = model.config.weather.tmax["filename"]
+        self.nc_varname = model.config.weather.tmax["varname"]
+        self.is_1d = model.config.weather.tmax["is_1d"]
+        self.xy_dimname = model.config.weather.tmax["xy_dimname"]
+        self.factor = model.config.weather.tmax["factor"]
+        self.offset = model.config.weather.tmax["offset"]
+
+    def initial(self):
+        self.load_data()
+
+    def load_data(self):
+        self._data = xarray.open_dataset(self.filename)[self.nc_varname]
 
 
 class MinTemperature:
     def __init__(self, model):
         self.model = model
-        self.filename = model.config.TMIN["filename"]
-        self.nc_varname = model.config.TMIN["varname"]
-        self.is_1d = model.config.TMIN["is_1d"]
-        self.xy_dimname = model.config.TMIN["xy_dimname"]
-        self.factor = model.config.TMIN["factor"]
-        self.offset = model.config.TMIN["offset"]
-        # self.model_varname = 'tmin'
-        # self.dataset_varname = 'tmin_dataset'
+        self.filename = model.config.weather.tmin["filename"]
+        self.nc_varname = model.config.weather.tmin["varname"]
+        self.is_1d = model.config.weather.tmin["is_1d"]
+        self.xy_dimname = model.config.weather.tmin["xy_dimname"]
+        self.factor = model.config.weather.tmin["factor"]
+        self.offset = model.config.weather.tmin["offset"]
 
 
 class Temperature:
     def __init__(self, model):
         self.tmin = MinTemperature(model)
         self.tmax = MaxTemperature(model)
+
+    def initial(self):
+        pass
+
+    def dynamic(self):
+        pass
 
     def write_aquacrop_input(self):
         pass
@@ -43,57 +51,38 @@ class Temperature:
 class Precipitation:
     def __init__(self, model):
         self.model = model
-        self.filename = model.config.PRECIPITATION["filename"]
-        self.nc_varname = model.config.PRECIPITATION["varname"]
-        self.is_1d = model.config.PRECIPITATION["is_1d"]
-        self.xy_dimname = model.config.PRECIPITATION["xy_dimname"]
-        self.factor = model.config.PRECIPITATION["factor"]
-        self.offset = model.config.PRECIPITATION["offset"]
-        # self.model_varname = 'prec'
-        # self.dataset_varname = 'prec_dataset'
+        self.filename = model.config.weather.prec["filename"]
+        self.nc_varname = model.config.weather.prec["varname"]
+        self.is_1d = model.config.weather.prec["is_1d"]
+        self.xy_dimname = model.config.weather.prec["xy_dimname"]
+        self.factor = model.config.weather.prec["factor"]
+        self.offset = model.config.weather.prec["offset"]
+
+    def initial(self):
+        pass
+
+    def dynamic(self):
+        pass
 
     def write_aquacrop_input(self):
         pass
 
 
-class ETref:
+class ET0:
     def __init__(self, model):
         self.model = model
-        self.filename = model.config.ETREF["filename"]
-        self.nc_varname = model.config.ETREF["varname"]
-        self.is_1d = model.config.ETREF["is_1d"]
-        self.xy_dimname = model.config.ETREF["xy_dimname"]
-        self.factor = model.config.ETREF["factor"]
-        self.offset = model.config.ETREF["offset"]
-        # self.model_varname = 'etref'
-        # self.dataset_varname = 'etref_dataset'
+        self.filename = model.config.weather.eto["filename"]
+        self.nc_varname = model.config.weather.eto["varname"]
+        self.is_1d = model.config.weather.eto["is_1d"]
+        self.xy_dimname = model.config.weather.eto["xy_dimname"]
+        self.factor = model.config.weather.eto["factor"]
+        self.offset = model.config.weather.eto["offset"]
+
+    def initial(self):
+        self._data = xarray.open_dataset(self.filename)
+
+    def dynamic(self):
+        pass
 
     def write_aquacrop_input(self):
         pass
-
-
-# class Weather(object):
-#     def __init__(self, model):
-#         self.model = model
-#         self.max_temperature_module = MaxTemperature(model)
-#         self.min_temperature_module = MinTemperature(model)
-#         self.prec_module = Precipitation(model)
-#         self.etref_module = ETref(model)
-
-#     def initial(self):
-#         self.max_temperature_module.initial()
-#         self.min_temperature_module.initial()
-#         self.prec_module.initial()
-#         self.etref_module.initial()
-
-#         # # Why are these necessary:
-#         # self.model.Tmax = self.model.tmax.values
-#         # self.model.Tmin = self.model.tmin.values
-#         # self.model.P = self.model.prec.values
-#         # self.model.ETref = self.model.etref.values
-
-#     def dynamic(self):
-#         self.max_temperature_module.dynamic()
-#         self.min_temperature_module.dynamic()
-#         self.prec_module.dynamic()
-#         self.etref_module.dynamic()

@@ -1035,7 +1035,7 @@ class CropParameterSet:
         # Check crop_name is valid
         self.crop_name = crop_name
         if self.crop_name not in self.VALID_CROP_TYPES:
-            raise ValueError("Hello, world")
+            raise ValueError()
 
         self._default_parameter_set = self.DEFAULT_CROP_PARAMETERS[crop_name]
         self.crop_name = crop_name

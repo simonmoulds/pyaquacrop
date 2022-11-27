@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
-# from hm.config import Configuration
+import os
+import tomli
 import warnings
 import logging
 
@@ -17,54 +17,60 @@ logger = logging.getLogger(__name__)
 #     'offset': 0.
 # }
 
+class Configuration:
 
-class Config:
     def __init__(
         self,
-        config_filename,
-        output_directory,
-        debug_mode=False,
-        system_arguments=None,
+        configfile,
+        # output_directory,
+        # debug_mode=False,
+        # system_arguments=None,
         **kwargs
     ):
+        # Input files should be specified relative to the
+        # location of the configuration file
+        path = os.path.dirname(configfile)
+        if os.path.isabs(path):
+            self.configpath = path
+        else:
+            self.configpath = os.path.join(os.getcwd(), path)
+
+        with open(configfile, 'rb') as f:
+            self._toml_dict = tomli.load(f)
+        self.parse_config_file()
+        self.set_config()
+
+    def parse_config_file(self):
+        config_sections = self._toml_dict.keys()
+        for section in config_sections:
+            vars(self)[section] = {}
+            options = self._toml_dict[section].keys()
+            for option in options:
+                self.__getattribute__(section)[option] = self._toml_dict[section][option]
+
+    def set_config(self, system_arguments=None):
+
         # self.deterministic = kwargs.get('deterministic', False)
         # self.montecarlo = kwargs.get('montecarlo', False)
         # self.kalmanfilter = kwargs.get('kalmanfilter', False)
-        # super().__init__(
-        #     config_filename,
-        #     output_directory,
-        #     debug_mode,
-        #     system_arguments,
-        #     **kwargs
-        # )
-        pass
-
-    # def set_config(self, system_arguments=None):
-    #     super().set_config(
-    #         system_arguments=system_arguments
-    #     )
-    #     if self.deterministic:
-    #         self.set_deterministic_run_options()
-    #     else:
-    #         if self.montecarlo | self.kalmanfilter:
-    #             self.set_montecarlo_run_options()
-    #         if self.kalmanfilter:
-    #             self.set_kalmanfilter_run_options()
-
-    #     self.set_model_grid_options()
-    #     self.set_weather_options()
-    #     self.set_etref_preprocess_options()
-    #     self.set_pseudo_coord_options()
-    #     self.set_initial_condition_options()
-    #     self.set_groundwater_options()
-    #     self.set_soil_profile_options()
-    #     self.set_soil_hydrology_options()
-    #     self.set_soil_parameter_options()
-    #     self.set_crop_parameter_options()
-    #     self.set_farm_parameter_options()
-    #     self.set_irrig_management_options()
-    #     self.set_field_management_options()
-    #     self.set_reporting_options()
+        # if self.deterministic:
+        #     self.set_deterministic_run_options()
+        # else:
+        #     if self.montecarlo | self.kalmanfilter:
+        #         self.set_montecarlo_run_options()
+        #     if self.kalmanfilter:
+        #         self.set_kalmanfilter_run_options()
+        self.set_model_grid_options()
+        self.set_weather_options()
+        # self.set_etref_preprocess_options()
+        # self.set_pseudo_coord_options()
+        self.set_initial_condition_options()
+        self.set_groundwater_options()
+        self.set_soil_parameter_options()
+        self.set_crop_parameter_options()
+        self.set_irrigation_options()
+        self.set_management_options()
+        self.set_reporting_options()
 
     # def set_deterministic_run_options(self):
     #     pass
@@ -86,6 +92,60 @@ class Config:
     #             elif isinstance(value, (str)):
     #                 self.PSEUDO_COORDS[key] = eval(value)
 
+    def set_model_grid_options(self):
+        pass
+
+    def set_weather_options(self):
+        # weather_sections = [
+        #     'PRECIPITATION',
+        #     'TAVG',
+        #     'TMIN',
+        #     'TMAX',
+        #     'LWDOWN',
+        #     'SP',
+        #     'SH',
+        #     'RHMAX',
+        #     'RHMIN',
+        #     'RHMEAN',
+        #     'SWDOWN',
+        #     'WIND',
+        #     'ETREF',
+        #     'CARBON_DIOXIDE'
+        # ]
+        # for section in weather_sections:
+        #     if section in vars(self):
+        #         for opt, default_value in DEFAULT_INPUT_FILE_OPTS.items():
+        #             if opt not in vars(self)[section].keys():
+        #                 vars(self)[section][opt] = default_value
+        #     else:
+        #         vars(self)[section] = DEFAULT_INPUT_FILE_OPTS
+        pass
+
+    def set_initial_condition_options(self):
+        pass
+
+    def set_groundwater_options(self):
+        pass
+
+    def set_soil_parameter_options(self):
+        pass
+
+    def set_crop_parameter_options(self):
+        pass
+
+    def set_irrigation_options(self):
+        pass
+
+    def set_management_options(self):
+        pass
+
+    def set_reporting_options(self):
+        # if 'REPORTING' not in self.config_sections:
+        #     self.REPORTING = {}
+        # if 'report' not in list(self.REPORTING.keys()):
+        #     self.REPORTING['report'] = False
+        pass
+
     # def check_config_file_for_required_entry(
     #         self,
     #         section_name,
@@ -106,220 +166,271 @@ class Config:
     #         else:
     #             pass
 
-    # def set_model_grid_options(self):
-    #     pass
+# class Configuration(object):
+#     def __init__(
+#             self,
+#             config_filename,
+#             output_directory,
+#             debug_mode=False,
+#             system_arguments=None,
+#             **kwargs
+#     ):
+#         """Model configuration.
 
-    # def set_weather_options(self):
-    #     weather_sections = [
-    #         'PRECIPITATION',
-    #         'TAVG',
-    #         'TMIN',
-    #         'TMAX',
-    #         'LWDOWN',
-    #         'SP',
-    #         'SH',
-    #         'RHMAX',
-    #         'RHMIN',
-    #         'RHMEAN',
-    #         'SWDOWN',
-    #         'WIND',
-    #         'ETREF',
-    #         'CARBON_DIOXIDE'
-    #     ]
-    #     for section in weather_sections:
-    #         if section in vars(self):
-    #             for opt, default_value in DEFAULT_INPUT_FILE_OPTS.items():
-    #                 if opt not in vars(self)[section].keys():
-    #                     vars(self)[section][opt] = default_value
-    #         else:
-    #             vars(self)[section] = DEFAULT_INPUT_FILE_OPTS
-    #     # TODO: check minimum inputs
+#         This class represents the configuration options which are
+#         necessary to run `hm` models.
 
-    # def set_etref_preprocess_options(self):
-    #     if 'preprocess' in vars(self)['ETREF'].keys():
-    #         if vars(self)['ETREF']['preprocess'] is True:
-    #             vars(self)['ETREF']['report'] = True
-    #             vars(self)['ETREF']['daily_total'] = 'ETref'
-    #         else:
-    #             vars(self)['ETREF']['preprocess'] = False
-    #     else:
-    #         vars(self)['ETREF']['preprocess'] = False
+#         Model developers should design model-specific configuration
+#         classes which inherit from this base class.
 
-    # def set_initial_condition_options(self):
-    #     self.check_config_file_for_required_entry(
-    #         'INITIAL_WATER_CONTENT',
-    #         'type'
-    #     )
-    #     init_type = self.INITIAL_WATER_CONTENT['type'].upper()
-    #     if init_type == 'FILE':
-    #         if 'filename' not in list(self.INITIAL_WATER_CONTENT.keys()):
-    #             raise KeyError(
-    #                 'type is FILE, but '
-    #                 'filename is not specified'
-    #             )
+#         Parameters
+#         ----------
+#         config_filename: str
+#             Filename of the configuration file.
+#         output_directory: str
+#             Intended location of model output
+#         debug_mode: bool, optional
+#             Should the model be run in debug mode?
+#         system_arguments: TODO
+#             TODO
+#         """
+#         if config_filename is None:
+#             raise ValueError(
+#                 'No configuration file specified'
+#             )
 
-    #         elif 'interp_method' not in list(self.INITIAL_WATER_CONTENT.keys()):
-    #             raise KeyError(
-    #                 'if type is FILE then interp_method must be specified as one of DEPTH or LAYER'
-    #             )
+#         config_filename = os.path.abspath(config_filename)
+#         if not os.path.exists(config_filename):
+#             raise ValueError(
+#                 'Specified configuration file '
+#                 + config_filename + ' does not exist'
+#             )
+#         self.config_filename = config_filename
+#         self.output_directory = output_directory
+#         self._timestamp = pd.Timestamp.now()
+#         self._debug_mode = debug_mode
+#         self.parse_config_file()
+#         self.set_config(system_arguments)
 
-    #         # set default options
-    #         for opt, default_value in DEFAULT_INPUT_FILE_OPTS.items():
-    #             if opt not in self.INITIAL_WATER_CONTENT.keys():
-    #                 self.INITIAL_WATER_CONTENT[opt] = default_value
+#     def parse_config_file(self):
+#         # config = ConfigParser(interpolation=ExtendedInterpolation())
+#         # config.optionxform = str
+#         # config.read(self.config_filename)
+#         # self.config_sections = config.sections()
+#         # for section in self.config_sections:
+#         #     vars(self)[section] = {}
+#         #     options = config.options(section)
+#         #     for option in options:
+#         #         val = config.get(section, option)
+#         #         self.__getattribute__(section)[option] = val
+#         config = toml.load(self.config_filename)
+#         self.config_sections = config.keys()
+#         for section in self.config_sections:
+#             vars(self)[section] = {}
+#             options = config[section].keys()
+#             for option in options:
+#                 self.__getattribute__(section)[option] = config[section][option]
 
-    #     elif init_type == 'PERCENT':
-    #         if 'percent' not in list(self.INITIAL_WATER_CONTENT.keys()):
-    #             raise KeyError(
-    #                 'type is PERCENT, but percent is not specified'
-    #             )
+#     def set_config(self, system_arguments=None):
+#         self.check_required_options()
+#         self.assign_default_options()
+#         self.create_output_directories()
+#         self.create_coupling_directories()
+#         self.initialize_logging("Default", system_arguments)
+#         self.backup_configuration()
 
-    #     elif init_type == 'PROPERTY':
-    #         if 'property' not in list(self.INITIAL_WATER_CONTENT.keys()):
-    #             raise KeyError(
-    #                 'type is PROPERTY, but property is not specified'
-    #             )
+#     def initialize_logging(self, log_file_location="Default", system_arguments=None):
+#         # Initialize logging. Prints to both the console
+#         # and a log file, at configurable levels.
+#         logging.getLogger().setLevel(logging.DEBUG)
+#         formatter = logging.Formatter(
+#             '%(asctime)s %(name)s %(levelname)s %(message)s')
+#         log_level_console = self.LOGGING['log_level_console']
+#         log_level_file = self.LOGGING['log_level_file']
+#         if self._debug_mode == True:
+#             log_level_console = "DEBUG"
+#             log_level_file = "DEBUG"
 
-    #         else:
-    #             prop = self.INITIAL_WATER_CONTENT['property'].upper()
-    #             if prop not in ['SAT', 'WP', 'FC']:
-    #                 raise ValueError(
-    #                     'property must be one of sat, wp, fc'
-    #                 )
+#         console_level = getattr(
+#             logging, log_level_console.upper(), logging.INFO)
+#         if not isinstance(console_level, int):
+#             raise ValueError('Invalid log level: %s', log_level_console)
 
-    #     else:
-    #         raise ValueError(
-    #             'type must be one of file, percent, property'
-    #         )
+#         console_handler = logging.StreamHandler()
+#         console_handler.setFormatter(formatter)
+#         console_handler.setLevel(console_level)
+#         logging.getLogger().addHandler(console_handler)
 
-    # def set_groundwater_options(self):
-    #     if 'water_table' not in list(self.WATER_TABLE.keys()):
-    #         self.WATER_TABLE['water_table'] = False
+#         if log_file_location != "Default":
+#             self.logFileDir = log_file_location
+#         log_filename = os.path.join(
+#             self.logFileDir,
+#             os.path.basename(self.config_filename) + '_'
+#             + str(self._timestamp.isoformat()).replace(":", ".")
+#             + '.log'
+#         )
+#         file_level = getattr(logging, log_level_file.upper(), logging.DEBUG)
+#         if not isinstance(console_level, int):
+#             raise ValueError('Invalid log level: %s', log_level_file)
 
-    #     if 'dynamic' not in list(self.WATER_TABLE.keys()):
-    #         self.WATER_TABLE['dynamic'] = False
+#         file_handler = logging.FileHandler(log_filename)
+#         file_handler.setFormatter(formatter)
+#         file_handler.setLevel(file_level)
+#         logging.getLogger().addHandler(file_handler)
 
-    #     for opt, default_value in DEFAULT_INPUT_FILE_OPTS.items():
-    #         if opt not in self.WATER_TABLE.keys():
-    #             self.WATER_TABLE[opt] = default_value
+#         dbg_filename = os.path.join(
+#             self.logFileDir,
+#             os.path.basename(self.config_filename) + '_'
+#             + str(self._timestamp.isoformat()).replace(":", ".")
+#             + '.dbg'
+#         )
 
-    #     if 'coupled' not in list(self.WATER_TABLE.keys()):
-    #         self.WATER_TABLE['coupled'] = False
+#         debug_handler = logging.FileHandler(dbg_filename)
+#         debug_handler.setFormatter(formatter)
+#         debug_handler.setLevel(logging.DEBUG)
+#         logging.getLogger().addHandler(debug_handler)
 
-    #     if self.WATER_TABLE['coupled']:
-    #         if 'directory' not in list(self.WATER_TABLE.keys()):
-    #             raise ValueError()
-    #         elif 'time_lag' not in list(self.WATER_TABLE.keys()):
-    #             raise ValueError()
-    #         elif 'max_wait_time' not in list(self.WATER_TABLE.keys()):
-    #             raise ValueError()
-    #         elif 'wait_interval' not in list(self.WATER_TABLE.keys()):
-    #             raise ValueError()
-    #     else:
-    #         self.WATER_TABLE['directory'] = ""
-    #         self.WATER_TABLE['time_lag'] = None
-    #         self.WATER_TABLE['max_wait_time'] = None
-    #         self.WATER_TABLE['wait_interval'] = None
+#         disclaimer.print_disclaimer(with_logger=True)
+#         logger.info('Model run started at %s', self._timestamp)
+#         logger.info('Logging output to %s', log_filename)
+#         logger.info('Debugging output to %s', dbg_filename)
 
-    # def set_soil_profile_options(self):
-    #     pass
+#         if system_arguments != None:
+#             logger.info(
+#                 'The system arguments given to execute this run: %s',
+#                 system_arguments
+#             )
 
-    # def set_soil_hydrology_options(self):
-    #     # FIXME
-    #     for opt, default_value in DEFAULT_INPUT_FILE_OPTS.items():
-    #         if opt not in self.SOIL_HYDRAULIC_PARAMETERS.keys():
-    #             self.SOIL_HYDRAULIC_PARAMETERS[opt] = default_value
+#     def backup_configuration(self):
+#         # Copy config file to log directory.
+#         backup_location = os.path.join(
+#             self.logFileDir,
+#             os.path.basename(self.config_filename) + '_'
+#             + str(self._timestamp.isoformat()).replace(":", ".")
+#             + '.ini'
+#         )
+#         shutil.copy(self.config_filename, backup_location)
 
-    # def set_soil_parameter_options(self):
-    #     for opt, default_value in DEFAULT_INPUT_FILE_OPTS.items():
-    #         if opt not in self.SOIL_PARAMETERS.keys():
-    #             self.SOIL_PARAMETERS[opt] = default_value
-    #     # if ('filename' not in list(self.SOIL_PARAMETERS.keys())) | \
-    #     #    (self.SOIL_PARAMETERS['filename'] in VALID_NONE_VALUES):
-    #     #     self.SOIL_PARAMETERS['filename'] = None
+#     def create_output_directories(self):
+#         # TODO: refactor this section of code, because I don't
+#         # think they're all required.
+#         try:
+#             os.makedirs(self.output_directory)
+#         except:
+#             pass
 
-    #     if 'adjustReadilyAvailableWater' not in list(self.SOIL_PARAMETERS.keys()):
-    #         self.SOIL_PARAMETERS['adjustReadilyAvailableWater'] = False
-    #     elif self.SOIL_PARAMETERS['adjustReadilyAvailableWater'] is True:
-    #         warnings.warn(
-    #             'Adjustment of readily evaporable water is not currently '
-    #             'implemented: setting to False'
-    #         )
-    #         self.SOIL_PARAMETERS['adjustReadilyAvailableWater'] = False
+#         self.tmpDir = os.path.join(self.output_directory, 'tmp')
+#         try:
+#             os.makedirs(self.tmpDir)
+#         except FileExistsError:
+#             pass
 
-    #     if 'adjustCurveNumber' not in list(self.SOIL_PARAMETERS.keys()):
-    #         self.SOIL_PARAMETERS['adjustCurveNumber'] = False
+#         self.outNCDir = os.path.join(self.output_directory, 'netcdf')
+#         try:
+#             os.makedirs(self.outNCDir)
+#         except FileExistsError:
+#             pass
 
-    # def set_crop_parameter_options(self):
-    #     for opt, default_value in DEFAULT_INPUT_FILE_OPTS.items():
-    #         if opt not in self.CROP_PARAMETERS.keys():
-    #             self.CROP_PARAMETERS[opt] = default_value
+#         self.logFileDir = os.path.join(self.output_directory, 'log')
+#         cleanLogDir = True
+#         try:
+#             os.makedirs(self.logFileDir)
+#         except FileExistsError:
+#             pass
 
-    #     if 'crop_id' not in list(self.CROP_PARAMETERS.keys()):
-    #         self.CROP_PARAMETERS['crop_id'] = [1]
+#         self.endStateDir = os.path.join(self.output_directory, 'states')
+#         try:
+#             os.makedirs(self.endStateDir)
+#         except FileExistsError:
+#             pass
 
-    #     if 'calendar_type' not in list(self.CROP_PARAMETERS.keys()):
-    #         self.CROP_PARAMETERS['calendar_type'] = 1
+#     def create_coupling_directories(self):
+#         pass
 
-    #     if 'switch_gdd' not in list(self.CROP_PARAMETERS.keys()):
-    #         self.CROP_PARAMETERS['switch_gdd'] = False
+#     def assign_default_options(self):
+#         self.assign_default_logging_options()
+#         self.assign_default_file_path_options()
 
-    #     if 'gdd_method' not in list(self.CROP_PARAMETERS.keys()):
-    #         self.CROP_PARAMETERS['gdd_method'] = 1
+#     def assign_default_logging_options(self):
+#         if 'LOGGING' not in self.config_sections:
+#             self.LOGGING = {}
+#         if 'log_level_console' not in self.LOGGING:
+#             self.LOGGING['log_level_console'] = 'INFO'
+#         if 'log_level_file' not in self.LOGGING:
+#             self.LOGGING['log_level_file'] = 'INFO'
 
-    #     # if 'nRotation' not in list(self.CROP_PARAMETERS.keys()):
-    #     #     self.CROP_PARAMETERS['nRotation'] = 1
+#     def assign_default_file_path_options(self):
+#         if 'FILE_PATHS' not in self.config_sections:
+#             self.FILE_PATHS = {}
+#         if 'in_path' not in self.FILE_PATHS:
+#             self.FILE_PATHS['in_path'] = '.'
+#         if 'out_path' not in self.FILE_PATHS:
+#             self.FILE_PATHS['in_path'] = '.'
 
-    #     # if 'landCoverFractionNC' not in list(self.CROP_PARAMETERS.keys()):
-    #     #     self.CROP_PARAMETERS['landCoverFractionNC'] = None
+#     def assign_default_reporting_options(self):
+#         if 'REPORTING' not in self.config_sections:
+#             self.REPORTING = {}
+#         if 'report' not in self.REPORTING:
+#             self.REPORTING['report'] = False
 
-    #     # if 'landCoverFractionVarName' not in list(self.CROP_PARAMETERS.keys()):
-    #     #     self.CROP_PARAMETERS['landCoverFractionVarName'] = None
+#     def check_required_options(self):
+#         default_model_grid_values = {
+#             'mask': None,
+#             'mask_varname': None,
+#             'area_varname': None,
+#             'is_1d': False,
+#             'xy_dimname': None
+#         }
+#         for opt, default_value in default_model_grid_values.items():
+#             if opt not in self.MODEL_GRID.keys():
+#                 self.MODEL_GRID[opt] = default_value
+#             # if opt in self.MODEL_GRID.keys():
+#             #     self.MODEL_GRID[opt] = interpret_string(self.MODEL_GRID[opt])
+#             # else:
+#             #     self.MODEL_GRID[opt] = default_value
 
-    #     # if 'cropAreaNC' not in list(self.CROP_PARAMETERS.keys()):
-    #     #     self.CROP_PARAMETERS['cropAreaNC'] = None
+#         # # MODEL_GRID
+#         # self._default_config_check('MODEL_GRID', ['mask'])
+#         # if 'mask_varname' not in self.MODEL_GRID:
+#         #     self.MODEL_GRID['mask_varname'] = None
+#         # if 'area_varname' not in self.MODEL_GRID:
+#         #     self.MODEL_GRID['area_varname'] = None
+#         # if 'is_1d' not in self.MODEL_GRID:
+#         #     self.MODEL_GRID['is_1d'] = False
+#         # if 'xy_dimname' not in self.MODEL_GRID:
+#         #     self.MODEL_GRID['xy_dimname'] = None
 
-    #     # if 'cropAreaVarName' not in list(self.CROP_PARAMETERS.keys()):
-    #     #     self.CROP_PARAMETERS['cropAreaVarName'] = None
+#         # PSEUDO_COORDS
+#         if 'PSEUDO_COORDS' not in self.config_sections:
+#             self.PSEUDO_COORDS = {}
+#         else:
+#             # TODO - interpret coordinates
+#             pass
 
-    #     # if 'croplandAreaNC' not in list(self.CROP_PARAMETERS.keys()):
-    #     #     self.CROP_PARAMETERS['croplandAreaNC'] = None
+#     def _default_config_check(self, section, options):
+#         if section not in self.config_sections:
+#             raise KeyError(
+#                 self.generate_missing_section_message(section)
+#             )
+#         else:
+#             for option in options:
+#                 if option not in vars(self)[section]:
+#                     raise KeyError(
+#                         self.generate_missing_option_message(section, option)
+#                     )
 
-    #     # if 'croplandAreaVarName' not in list(self.CROP_PARAMETERS.keys()):
-    #     #     self.CROP_PARAMETERS['croplandAreaVarName'] = None
+#     def generate_missing_section_message(self, section):
+#         """Generates message to inform users that a configuration
+#         section is missing.
+#         """
+#         return 'Configuration file ' + self.config_filename \
+#             + ' does not contain section ' + section \
+#             + ', which must be supplied'
 
-    #     # if 'AnnualChangeInCropArea' not in list(self.CROP_PARAMETERS.keys()):
-    #     #     self.CROP_PARAMETERS['AnnualChangeInCropArea'] = False
-
-    # def set_farm_parameter_options(self):
-    #     if 'FARM_PARAMETERS' not in self.config_sections:
-    #         self.FARM_PARAMETERS = {}
-
-    #     if 'nFarm' not in list(self.FARM_PARAMETERS.keys()):
-    #         self.FARM_PARAMETERS['nFarm'] = 1
-
-    #     if 'farmAreaNC' not in list(self.FARM_PARAMETERS.keys()):
-    #         self.FARM_PARAMETERS['farmAreaNC'] = None
-
-    #     if 'farmAreaVarName' not in list(self.FARM_PARAMETERS.keys()):
-    #         self.FARM_PARAMETERS['farmAreaVarName'] = None
-
-    #     if 'AnnualChangeInFarmArea' not in list(self.FARM_PARAMETERS.keys()):
-    #         self.FARM_PARAMETERS['AnnualChangeInFarmArea'] = False
-
-    # def set_irrig_management_options(self):
-    #     pass
-
-    # def set_field_management_options(self):
-    #     for opt, default_value in DEFAULT_INPUT_FILE_OPTS.items():
-    #         if opt not in self.FIELD_MANAGEMENT.keys():
-    #             self.FIELD_MANAGEMENT[opt] = default_value
-    #     # if 'filename' not in list(self.FIELD_MANAGEMENT.keys()):
-    #     #     self.FIELD_MANAGEMENT['filename'] = None
-
-    # def set_reporting_options(self):
-    #     if 'REPORTING' not in self.config_sections:
-    #         self.REPORTING = {}
-
-    #     if 'report' not in list(self.REPORTING.keys()):
-    #         self.REPORTING['report'] = False
+#     def generate_missing_option_message(self, section, option):
+#         """Generates message to inform users that a configuration
+#         option is missing.
+#         """
+#         return 'Section ' + section + ' in configuration file ' \
+#             + self.config_filename + ' does not contain option ' \
+#             + option + ', which must be supplied'
