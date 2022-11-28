@@ -6,6 +6,9 @@ import requests
 import netCDF4
 import xarray
 import metpy
+import metpy.calc as mpcalc
+import numpy as np
+import importlib
 import click
 from datetime import date
 from decimal import Decimal
@@ -229,10 +232,11 @@ domain = Domain(ds_1d)
 configfile = 'tests/testdata/config.toml'
 import pyaquacrop.Config
 importlib.reload(pyaquacrop.Config)
-from pyaquacrop.Config import Configuration
-config = Configuration(configfile)
+from pyaquacrop.Config import load_config
+# config = Configuration(configfile)
+config = load_config(configfile)
 
-modelgrid = os.path.join(config.configpath, config.MODEL_GRID['filename'])
+modelgrid = os.path.join(config['configpath'], config['MODEL_GRID']['filename'])
 ds = xarray.open_dataset(modelgrid)
 domain = Domain(ds)
 pt = (5.15256672, -1.88154445)  # lat, lon
@@ -247,6 +251,14 @@ filename = os.path.basename(fn)
 regex = re.compile(str(filename))
 fs = [os.path.join(path, f) for f in os.listdir(path) if regex.match(f)]
 ds = xarray.open_mfdataset(fs)
+# ds.sel(lat=pt[0], lon=pt[1], method='nearest').t2m.values
+
+import pyaquacrop.Weather
+importlib.reload(pyaquacrop.Weather)
+from pyaquacrop.Weather import MaxTemperature
+tmax = MaxTemperature(config)
+tmax.initial()
+tmax.select(pt[0], pt[1])
 
 # TODO if 1D then lat/lon must be coordinates in xarray object
 
