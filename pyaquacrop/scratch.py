@@ -226,18 +226,29 @@ ds_1d = ds.stack(xy=[...]) #, create_index=False)
 domain = Domain(ds_1d)
 
 # TODO add test config, create Config class, create MaxTemperature object
-configfile = 'tests/testdata/era5_config.toml'
+configfile = 'tests/testdata/config.toml'
 import pyaquacrop.Config
 importlib.reload(pyaquacrop.Config)
 from pyaquacrop.Config import Configuration
 config = Configuration(configfile)
 
-modelgrid = os.path.join(config.configpath, config.MODEL_GRID['mask'])
+modelgrid = os.path.join(config.configpath, config.MODEL_GRID['filename'])
 ds = xarray.open_dataset(modelgrid)
 domain = Domain(ds)
 pt = (5.15256672, -1.88154445)  # lat, lon
 
 # TODO create a Tmax object and try to create AquaCrop input
+import re
+fn = config.TMAX['filename']
+if ~os.path.isabs(fn):
+    fn = os.path.join(config.configpath, fn)
+path = os.path.dirname(fn)
+filename = os.path.basename(fn)
+regex = re.compile(str(filename))
+fs = [os.path.join(path, f) for f in os.listdir(path) if regex.match(f)]
+ds = xarray.open_mfdataset(fs)
+
+# TODO if 1D then lat/lon must be coordinates in xarray object
 
 # from sklearn.neighbors import BallTree
 # from math import radians
