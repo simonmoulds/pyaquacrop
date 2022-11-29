@@ -48,6 +48,7 @@ class SpaceTimeDataArray:
     def values(self):
         return (self._data_subset[self.varname].values * self.factor) + self.offset
 
+
 def _climate_data_header(start_date: pd.Timestamp) -> str:
     day, month, year = start_date.day, start_date.month, start_date.year
     header = (
@@ -70,32 +71,27 @@ def _climate_data_header(start_date: pd.Timestamp) -> str:
     return header
 
 
-class MaxTemperature(SpaceTimeDataArray):
-    def __init__(self, config):
-        filename = config['TMAX']['filename']
+class Weather(SpaceTimeDataArray):
+    def __init__(self, config, config_section):
         super().__init__(
             config,
-            filename,
-            config['TMAX']['varname'],
-            config['TMAX']['is_1d'],
-            config['TMAX']['xy_dimname'],
-            config['TMAX']['factor'],
-            config['TMAX']['offset']
+            config[config_section]['filename'],
+            config[config_section]['varname'],
+            config[config_section]['is_1d'],
+            config[config_section]['xy_dimname'],
+            config[config_section]['factor'],
+            config[config_section]['offset']
         )
 
 
-class MinTemperature(SpaceTimeDataArray):
+class MaxTemperature(Weather):
     def __init__(self, config):
-        filename = config['TMAX']['filename']
-        super().__init__(
-            config,
-            filename,
-            config['TMIN']['varname'],
-            config['TMIN']['is_1d'],
-            config['TMIN']['xy_dimname'],
-            config['TMIN']['factor'],
-            config['TMIN']['offset']
-        )
+        super().__init__(config, 'TMAX')
+
+
+class MinTemperature(Weather):
+    def __init__(self, config):
+        super().__init__(config, 'TMIN')
 
 
 class Temperature:
@@ -127,18 +123,9 @@ class Temperature:
         return None
 
 
-class Precipitation(SpaceTimeDataArray):
+class Precipitation(Weather):
     def __init__(self, config):
-        filename = config['TMAX']['filename']
-        super().__init__(
-            config,
-            filename,
-            config['TMIN']['varname'],
-            config['TMIN']['is_1d'],
-            config['TMIN']['xy_dimname'],
-            config['TMIN']['factor'],
-            config['TMIN']['offset']
-        )
+        super().__init__(config, 'PREC')
 
     def _write_aquacrop_input(self, filename):
         header = _climate_data_header(pd.Timestamp(self._data_subset.time.values[0]))
@@ -152,43 +139,93 @@ class Precipitation(SpaceTimeDataArray):
         return None
 
 
-class _PenmanMonteith:
+class _DewTemperature(SpaceTimeDataArray):
+    def __init__(self, config):
+        super().__init__(config, 'TDEW')
+
+
+class _WindSpeed(SpaceTimeDataArray):
+    def __init__(self, config):
+        super().__init__(config, 'WIND')
+
+
+class _U_WindSpeed(SpaceTimeDataArray):
+    def __init__(self, config):
+        super().__init__(config, 'U_WIND')
+
+
+class _SolarRadiation(SpaceTimeDataArray):
+    def __init__(self, config):
+        super().__init__(config, 'SRAD')
+
+
+# Use this in config function?
+def _check_valid_input(config, config_section):
+    if config_section not in config.keys():
+        return False
+    if 'filename' not in config[config_section]:
+        return False
+    if not os.path.exists(config[config_section]['filename']):
+        return False
+    return True
+
+
+class _ET0_PenmanMonteith:
+    def __init__(self, config):
+        self.tmin = MinTemperature(config)
+        self.tmax = MaxTemperature(config)
+        # Idea here is to have exactly the variables we need, and provide a class for that variable which either reads it directly or computes it from other variables
+
+
+class _ET0_Hargreaves:
     def __init__(self, config):
         pass
 
 
-class _Hargreaves:
+class _ET0_PriestleyTaylor:
     def __init__(self, config):
         pass
 
 
-class _PriestleyTaylor:
+class _ET0_FromFile:
     def __init__(self, config):
-        pass
+        super().__init__(config, 'ET0')
 
 
-class ET0:
+class ET0(SpaceTimeDataArray):
     VALID_METHODS = ['hargreaves', 'penman_monteith', 'priestley_taylor']
     def __init__(self, config):
         preprocess = bool(config['ET0']['preprocess'])
         if preprocess:
             method = str(config['ET0']['method']).lower()
             if method == "hargreaves":
-                _Hargreaves(config)
+                self.eto = _ET0_Hargreaves(config)
             elif method == "penman_monteith":
-                _PenmanMonteith(config)
+                self.eto = _ET0_PenmanMonteith(config)
             elif method == "priestley_taylor":
-                _PriestleyTaylor(config)
+                self.eto = _ET0_PriestleyTaylor(config)
             else:
                 raise ValueError("Invalid `method` in config: must be one of `hargreaves`, `penman_monteith`, `priestley_taylor`")
         else:
-            filename = config['TMAX']['filename']
-            super().__init__(
-                config,
-                filename,
-                config['ET0']['varname'],
-                config['ET0']['is_1d'],
-                config['ET0']['xy_dimname'],
-                config['ET0']['factor'],
-                config['ET0']['offset']
+            self.eto = _ET0_FromFile(config)
+
+    def initial(self):
+        self.eto.initial()
+
+    def select(self, lat, lon):
+        self.eto.select(lat, lon)
+
+    @property
+    def values(self):
+        return self.eto.values
+
+    def _write_aquacrop_input(self, filename):
+        header = _climate_data_header(pd.Timestamp(self._data_subset.time.values[0]))
+        header += "  Total Rain (mm)" + os.linesep
+        header += "======================="
+        with open(filename, "w") as f:
+            np.savetxt(
+                f, self.values, fmt="%.2f", delimiter="\t",
+                newline=os.linesep, header=header, comments=""
             )
+        return None
