@@ -241,26 +241,30 @@ ds = xarray.open_dataset(modelgrid)
 domain = Domain(ds)
 pt = (5.15256672, -1.88154445)  # lat, lon
 
-# TODO create a Tmax object and try to create AquaCrop input
-import re
-fn = config.TMAX['filename']
-if ~os.path.isabs(fn):
-    fn = os.path.join(config.configpath, fn)
-path = os.path.dirname(fn)
-filename = os.path.basename(fn)
-regex = re.compile(str(filename))
-fs = [os.path.join(path, f) for f in os.listdir(path) if regex.match(f)]
-ds = xarray.open_mfdataset(fs)
-# ds.sel(lat=pt[0], lon=pt[1], method='nearest').t2m.values
+# # TODO create a Tmax object and try to create AquaCrop input
+# import re
+# fn = config.TMAX['filename']
+# if ~os.path.isabs(fn):
+#     fn = os.path.join(config.configpath, fn)
+# path = os.path.dirname(fn)
+# filename = os.path.basename(fn)
+# regex = re.compile(str(filename))
+# fs = [os.path.join(path, f) for f in os.listdir(path) if regex.match(f)]
+# ds = xarray.open_mfdataset(fs)
+# # ds.sel(lat=pt[0], lon=pt[1], method='nearest').t2m.values
 
 import pyaquacrop.Weather
 importlib.reload(pyaquacrop.Weather)
-from pyaquacrop.Weather import MaxTemperature
-tmax = MaxTemperature(config)
-tmax.initial()
-tmax.select(pt[0], pt[1])
+from pyaquacrop.Weather import MaxTemperature, Temperature
+# tmax = MaxTemperature(config)
+# tmax.initial()
+# tmax.select(pt[0], pt[1])
+temp = Temperature(config)
+temp.initial()
+temp.select(pt[0], pt[1])
+temp._write_aquacrop_input("tmp.txt") # This works!
 
-# TODO if 1D then lat/lon must be coordinates in xarray object
+# TODO repeat for eto and precip
 
 # from sklearn.neighbors import BallTree
 # from math import radians

@@ -4,6 +4,7 @@
 import os
 import re
 import numpy as np
+import pandas as pd
 import xarray
 # from hm.api import open_hmdataarray
 # from hm.input import HmInputData
@@ -43,6 +44,9 @@ class SpaceTimeDataArray:
     def select(self, lat, lon):
         self._data_subset = self._data.sel(lat=lat, lon=lon, method='nearest')
 
+    @property
+    def values(self):
+        return (self._data_subset[self.varname].values * self.factor) + self.offset
 
 def _climate_data_header(start_date: pd.Timestamp) -> str:
     day, month, year = start_date.day, start_date.month, start_date.year
@@ -74,82 +78,117 @@ class MaxTemperature(SpaceTimeDataArray):
             filename,
             config['TMAX']['varname'],
             config['TMAX']['is_1d'],
-            config['TMAX']['xy_dimname']#,
-            # config['TMAX']['factor'],
-            # config['TMAX']['offset']
+            config['TMAX']['xy_dimname'],
+            config['TMAX']['factor'],
+            config['TMAX']['offset']
         )
 
-    def _write_aquacrop_input(self):
-        pass
-        # header = _climate_data_header(self._data.time.values[0])
-        # header = header + "  Total Rain (mm)" + os.linesep + "======================="
-        # # X = x.sel(lat=latitude, lon=longitude, method="nearest")
-        # with open(os.path.join(sub_dir, filename), "w") as f:
-        #     np.savetxt(f, X, fmt="%.2f", newline=LINESEP, header=header, comments="")
-        # return None
 
-
-class MinTemperature:
-    def __init__(self, model):
-        self.model = model
-        self.filename = model.config.weather.tmin["filename"]
-        self.nc_varname = model.config.weather.tmin["varname"]
-        self.is_1d = model.config.weather.tmin["is_1d"]
-        self.xy_dimname = model.config.weather.tmin["xy_dimname"]
-        self.factor = model.config.weather.tmin["factor"]
-        self.offset = model.config.weather.tmin["offset"]
+class MinTemperature(SpaceTimeDataArray):
+    def __init__(self, config):
+        filename = config['TMAX']['filename']
+        super().__init__(
+            config,
+            filename,
+            config['TMIN']['varname'],
+            config['TMIN']['is_1d'],
+            config['TMIN']['xy_dimname'],
+            config['TMIN']['factor'],
+            config['TMIN']['offset']
+        )
 
 
 class Temperature:
-    def __init__(self, model):
-        self.tmin = MinTemperature(model)
-        self.tmax = MaxTemperature(model)
+    def __init__(self, config):
+        self.tmin = MaxTemperature(config)
+        self.tmax = MaxTemperature(config)
 
     def initial(self):
+        self.tmin.initial()
+        self.tmax.initial()
+
+    def select(self, lat, lon):
+        self.tmin.select(lat, lon)
+        self.tmax.select(lat, lon)
+
+    @property
+    def values(self):
+        return np.column_stack((self.tmin.values, self.tmax.values))
+
+    def _write_aquacrop_input(self, filename):
+        header = _climate_data_header(pd.Timestamp(self.tmin._data_subset.time.values[0]))
+        header += "  Tmin (C)   Tmax (C)" + os.linesep
+        header += "======================="
+        with open(filename, "w") as f:
+            np.savetxt(
+                f, self.values, fmt="%.2f", delimiter='\t',
+                newline=os.linesep, header=header, comments=""
+            )
+        return None
+
+
+class Precipitation(SpaceTimeDataArray):
+    def __init__(self, config):
+        filename = config['TMAX']['filename']
+        super().__init__(
+            config,
+            filename,
+            config['TMIN']['varname'],
+            config['TMIN']['is_1d'],
+            config['TMIN']['xy_dimname'],
+            config['TMIN']['factor'],
+            config['TMIN']['offset']
+        )
+
+    def _write_aquacrop_input(self, filename):
+        header = _climate_data_header(pd.Timestamp(self._data_subset.time.values[0]))
+        header += "  Total Rain (mm)" + os.linesep
+        header += "======================="
+        with open(filename, "w") as f:
+            np.savetxt(
+                f, self.values, fmt="%.2f", delimiter="\t",
+                newline=os.linesep, header=header, comments=""
+            )
+        return None
+
+
+class _PenmanMonteith:
+    def __init__(self, config):
         pass
 
-    def dynamic(self):
+
+class _Hargreaves:
+    def __init__(self, config):
         pass
 
-    def write_aquacrop_input(self):
-        pass
 
-
-class Precipitation:
-    def __init__(self, model):
-        self.model = model
-        self.filename = model.config.weather.prec["filename"]
-        self.nc_varname = model.config.weather.prec["varname"]
-        self.is_1d = model.config.weather.prec["is_1d"]
-        self.xy_dimname = model.config.weather.prec["xy_dimname"]
-        self.factor = model.config.weather.prec["factor"]
-        self.offset = model.config.weather.prec["offset"]
-
-    def initial(self):
-        pass
-
-    def dynamic(self):
-        pass
-
-    def write_aquacrop_input(self):
+class _PriestleyTaylor:
+    def __init__(self, config):
         pass
 
 
 class ET0:
-    def __init__(self, model):
-        self.model = model
-        self.filename = model.config.weather.eto["filename"]
-        self.nc_varname = model.config.weather.eto["varname"]
-        self.is_1d = model.config.weather.eto["is_1d"]
-        self.xy_dimname = model.config.weather.eto["xy_dimname"]
-        self.factor = model.config.weather.eto["factor"]
-        self.offset = model.config.weather.eto["offset"]
-
-    def initial(self):
-        self._data = xarray.open_dataset(self.filename)
-
-    def dynamic(self):
-        pass
-
-    def write_aquacrop_input(self):
-        pass
+    VALID_METHODS = ['hargreaves', 'penman_monteith', 'priestley_taylor']
+    def __init__(self, config):
+        preprocess = bool(config['ET0']['preprocess'])
+        if preprocess:
+            method = str(config['ET0']['method']).lower()
+            if method == "hargreaves":
+                _Hargreaves(config)
+            elif method == "penman_monteith":
+                _PenmanMonteith(config)
+            elif method == "priestley_taylor":
+                _PriestleyTaylor(config)
+            else:
+                raise ValueError("Invalid `method` in config: must be one of `hargreaves`, `penman_monteith`, `priestley_taylor`")
+        else:
+            filename = config['TMAX']['filename']
+            super().__init__(
+                config,
+                filename,
+                config['ET0']['varname'],
+                config['ET0']['is_1d'],
+                config['ET0']['xy_dimname'],
+                config['ET0']['factor'],
+                config['ET0']['offset']
+            )
