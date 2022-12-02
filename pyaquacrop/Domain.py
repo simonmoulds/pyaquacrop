@@ -11,9 +11,13 @@ import pandas as pd
 
 # https://github.com/cdgriffith/Box/
 from box import Box
-from collections import namedtuple, OrderedDict
+from collections import OrderedDict
 
-from .constants import *
+from .constants import (allowed_xy_dim_names,
+                        allowed_x_dim_names,
+                        allowed_y_dim_names,
+                        allowed_z_dim_names,
+                        allowed_t_dim_names)
 # from .utils import *
 
 # https://gis.stackexchange.com/a/166900
@@ -47,22 +51,20 @@ def get_xr_dimension_axes(dataset_or_dataarray, dimnames):
     return Box(axes, frozen_box=True)
 
 
-def get_xr_coordinates(dataset_or_dataarray, dimnames):
+def get_xr_coordinates(dataset_or_dataarray):
+    coordinate_names = [nm for nm in dataset_or_dataarray.coords.keys()]
     coords = OrderedDict()
-    for dim, dimname in dimnames.items():
-        if dimname is not None:
-            coords[dim] = dataset_or_dataarray[dimname].values
+    # for dim, dimname in dimnames.items():
+    #     if dimname is not None:
+    #         coords[dim] = dataset_or_dataarray[dimname].values
+    for coord in coordinate_names:
+        if coord in allowed_xy_dim_names:
+            coords['xy'] = coord  #dataset_or_dataarray[coord]
+        elif coord in allowed_x_dim_names:
+            coords['x'] = coord  #dataset_or_dataarray[coord]
+        elif coord in allowed_y_dim_names:
+            coords['y'] = coord  #dataset_or_dataarray[coord]
     return Box(coords, frozen_box=False)
-
-
-def get_spatial_extent(coords):
-    xres = coords.x[1] - coords.x[0]
-    yres = coords.y[1] - coords.y[0]
-    xmin = np.min(coords.x) - (xres / 2.)
-    xmax = np.max(coords.x) + (xres / 2.)
-    ymin = np.min(coords.y) - (yres / 2.)
-    ymax = np.max(coords.y) + (yres / 2.)
-    return Box(left=xmin, right=xmax, top=ymax, bottom=ymin, frozen_box=True)
 
 
 class Base(object):
@@ -97,7 +99,7 @@ class Base(object):
             self._xy_dimname
         )
         self._axes = get_xr_dimension_axes(self._data, self._dims)
-        self._coords = get_xr_coordinates(self._data, self._dims)
+        self._coords = get_xr_coordinates(self._data)  #, self._dims)
         self._is_1d = ('xy' in self.dims)
         self._is_2d = (
             (not self._is_1d)
@@ -107,15 +109,31 @@ class Base(object):
         self._is_spatial = self._is_1d | self._is_2d
         self._spatial_extent()
 
+    def _get_2d_spatial_extent(self):
+        xres = self.x[1] - self.x[0]
+        yres = self.y[1] - self.y[0]
+        xmin = np.min(self.x) - (self.x / 2.)
+        xmax = np.max(self.x) + (xres / 2.)
+        ymin = np.min(self.y) - (yres / 2.)
+        ymax = np.max(self.y) + (yres / 2.)
+        self._extent = Box(left=xmin, right=xmax, top=ymax, bottom=ymin, frozen_box=True)
+
+    def _get_1d_spatial_extent(self):
+        xmin = np.min(self.x)
+        xmax = np.max(self.x)
+        ymin = np.min(self.y)
+        ymax = np.max(self.y)
+        self._extent = Box(left=xmin, right=xmax, top=ymax, bottom=ymin, frozen_box=True)
+
     def _spatial_extent(self):
         # Extract spatial extent from data object.
 
         # Only relevant for two-dimensional datasets; for
         # one-dimensional datasets the extent is None.
         if self.is_2d:
-            self._extent = get_spatial_extent(self._coords)
+            self._get_2d_spatial_extent()
         else:
-            self._extent = None
+            self._get_1d_spatial_extent()
 
     @property
     def extent(self):
@@ -147,20 +165,20 @@ class Base(object):
         """bool: Whether or not the object is spatial."""
         return self.is_1d | self.is_2d
 
-    @property
-    def is_temporal(self):
-        """bool: Whether or not the object is temporal."""
-        return 'time' in self.dims
+    # @property
+    # def is_temporal(self):
+    #     """bool: Whether or not the object is temporal."""
+    #     return 'time' in self.dims
 
-    @property
-    def has_data(self):
-        """bool: Whether or not the object has data."""
-        return self._has_data
+    # @property
+    # def has_data(self):
+    #     """bool: Whether or not the object has data."""
+    #     return self._has_data
 
-    @property
-    def in_memory(self):
-        """bool: Whether or not the data is stored in memory."""
-        return self._in_memory
+    # @property
+    # def in_memory(self):
+    #     """bool: Whether or not the data is stored in memory."""
+    #     return self._in_memory
 
 class Domain(Base):
     def __init__(
@@ -220,7 +238,7 @@ class Domain(Base):
             self._xy_dimname
         )
         self._axes = get_xr_dimension_axes(self._data, self._dims)
-        self._coords = get_xr_coordinates(self._data, self._dims)
+        self._coords = get_xr_coordinates(self._data)  #, self._dims)
         self._is_1d = ('xy' in self.dims)
         self._is_2d = (
             (not self._is_1d)
@@ -270,20 +288,20 @@ class Domain(Base):
         """bool: Whether or not the object is spatial."""
         return self.is_1d | self.is_2d
 
-    @property
-    def is_temporal(self):
-        """bool: Whether or not the object is temporal."""
-        return 'time' in self.dims
+    # @property
+    # def is_temporal(self):
+    #     """bool: Whether or not the object is temporal."""
+    #     return 'time' in self.dims
 
-    @property
-    def has_data(self):
-        """bool: Whether or not the object has data."""
-        return self._has_data
+    # @property
+    # def has_data(self):
+    #     """bool: Whether or not the object has data."""
+    #     return self._has_data
 
-    @property
-    def in_memory(self):
-        """bool: Whether or not the data is stored in memory."""
-        return self._in_memory
+    # @property
+    # def in_memory(self):
+    #     """bool: Whether or not the data is stored in memory."""
+    #     return self._in_memory
 
     @property
     def is_latlon(self):
@@ -293,35 +311,47 @@ class Domain(Base):
     @property
     def y(self):
         """numpy.array: y-coordinates."""
-        return self._coords['y']
+        ycoord = self._coords['y']
+        return self._data[ycoord].values
+        # return self._coords['y'].values
 
     @property
     def x(self):
         """numpy.array: x-coordinates."""
-        return self._coords['x']
+        xcoord = self._coords['x']
+        return self._data[xcoord].values
+        # return self._coords['x'].values
+
+    @property
+    def xy(self):
+        if self._is_1d:
+            xycoord = self._coords['xy']
+            return self._data[xycoord].values
+        else:
+            return None
 
     @property
     def nx(self):
         """int: Size of model grid in x-direction."""
-        return len(self._coords['x'])
+        return len(self.x)
 
     @property
     def ny(self):
         """int: Size of model grid in y-direction."""
-        return len(self._coords['y'])
+        return len(self.y)
 
     @property
     def nxy(self):
         """int: Total number of model grid points."""
         if self._is_1d:
-            return len(self._coords['xy'])
+            return len(self.xy)
         elif self._is_2d:
-            return len(self._coords['xy'][0])
+            return (self.nx * self.ny)
 
-    @property
-    def area(self):
-        """numpy.array: Area represented by each model grid point."""
-        return self._data['area']
+    # @property
+    # def area(self):
+    #     """numpy.array: Area represented by each model grid point."""
+    #     return self._data['area']
 
     @property
     def mask(self):

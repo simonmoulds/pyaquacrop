@@ -20,7 +20,6 @@ Prec = xarray.open_dataarray(
         "download_daily_mean_total_precipitation_2010_01.nc",
     )
 )
-
 T_min = xarray.open_dataarray(
     os.path.join(
         "..",
@@ -218,23 +217,25 @@ ds = xarray.Dataset(
 import pyaquacrop.Domain
 importlib.reload(pyaquacrop.Domain)
 from pyaquacrop.Domain import Domain
-from pyaquacrop.Weather import MaxTemperature
 
+ds = ds.sel(lat=slice(8., 10.), lon=slice(-2., 0.))
 # We can flatten the dataset as follows:
-ds_1d = ds.stack(xy=[...]) #, create_index=False)
-# lats = ds_1d.lat.values
-# lons = ds_1d.lon.values
-# data = ds_1d.mask.values
-# FIXME - always represent domain as 1D xarray
-domain = Domain(ds_1d)
+ds_1d = ds.stack(xy=[...], create_index=False)
+ds_1d = ds_1d.assign_coords(xy=("xy", [i+1 for i in range(400)]))
+# FIXME - always represent domain as 1D xarray?
+domain = Domain(ds_1d, is_1d=True, xy_dimname="xy")
+
+ds.to_netcdf("tests/testdata/ghana.nc")
+ds_1d.to_netcdf("tests/testdata/ghana_1d.nc")
 
 # TODO add test config, create Config class, create MaxTemperature object
 configfile = 'tests/testdata/config.toml'
 import pyaquacrop.Config
 importlib.reload(pyaquacrop.Config)
-from pyaquacrop.Config import load_config
+from pyaquacrop.Config import load_config, Configuration
 # config = Configuration(configfile)
 config = load_config(configfile)
+config = Configuration(configfile)
 
 modelgrid = os.path.join(config['configpath'], config['MODEL_GRID']['filename'])
 ds = xarray.open_dataset(modelgrid)
@@ -255,7 +256,7 @@ pt = (5.15256672, -1.88154445)  # lat, lon
 
 import pyaquacrop.Weather
 importlib.reload(pyaquacrop.Weather)
-from pyaquacrop.Weather import MaxTemperature, Temperature
+from pyaquacrop.Weather import Temperature
 # tmax = MaxTemperature(config)
 # tmax.initial()
 # tmax.select(pt[0], pt[1])
@@ -266,6 +267,15 @@ temp._write_aquacrop_input("tmp.txt") # This works!
 
 # TODO repeat for eto and precip
 
+import pyaquacrop.AquaCrop
+importlib.reload(pyaquacrop.AquaCrop)
+from pyaquacrop.AquaCrop import AquaCrop
+
+import pyaquacrop.ModelTime
+importlib.reload(pyaquacrop.ModelTime)
+from pyaquacrop.ModelTime import ModelTime
+
+model = AquaCrop(configfile)
 # from sklearn.neighbors import BallTree
 # from math import radians
 # earth_radius = 6371000 # meters in earth
@@ -278,48 +288,48 @@ temp._write_aquacrop_input("tmp.txt") # This works!
 # print(ind)
 # print(results * earth_radius/1000)
 
-from math import radians, cos, sin, asin, sqrt, degrees, atan2
-X = [32.027240,-81.093190]
-Y = [41.981876,-87.969982]
-# Xrad = [radians(_) for _ in X]
-# Yrad = [radians(_) for _ in Y]
-# from sklearn.metrics.pairwise import haversine_distances
-# dist = haversine_distances([Xrad, Yrad])
-# dist *= 6371000 / 1000
-def distance_haversine(p1, p2):
-    """
-    Calculate the great circle distance between two points
-    on the earth (specified in decimal degrees)
-    Haversine
-    formula:
-        a = sin²(Δφ/2) + cos φ1 ⋅ cos φ2 ⋅ sin²(Δλ/2)
-                        _   ____
-        c = 2 ⋅ atan2( √a, √(1−a) )
-        d = R ⋅ c
+# from math import radians, cos, sin, asin, sqrt, degrees, atan2
+# X = [32.027240,-81.093190]
+# Y = [41.981876,-87.969982]
+# # Xrad = [radians(_) for _ in X]
+# # Yrad = [radians(_) for _ in Y]
+# # from sklearn.metrics.pairwise import haversine_distances
+# # dist = haversine_distances([Xrad, Yrad])
+# # dist *= 6371000 / 1000
+# def distance_haversine(p1, p2):
+#     """
+#     Calculate the great circle distance between two points
+#     on the earth (specified in decimal degrees)
+#     Haversine
+#     formula:
+#         a = sin²(Δφ/2) + cos φ1 ⋅ cos φ2 ⋅ sin²(Δλ/2)
+#                         _   ____
+#         c = 2 ⋅ atan2( √a, √(1−a) )
+#         d = R ⋅ c
 
-    where   φ is latitude, λ is longitude, R is earth’s radius (mean radius = 6,371km);
-            note that angles need to be in radians to pass to trig functions!
-    """
-    lat1, lon1 = p1
-    lat2, lon2 = p2
-    # for p in [p1, p2]:
-    #     validate_point(p)
+#     where   φ is latitude, λ is longitude, R is earth’s radius (mean radius = 6,371km);
+#             note that angles need to be in radians to pass to trig functions!
+#     """
+#     lat1, lon1 = p1
+#     lat2, lon2 = p2
+#     # for p in [p1, p2]:
+#     #     validate_point(p)
 
-    R = 6371 # km - earths's radius
+#     R = 6371 # km - earths's radius
 
-    # convert decimal degrees to radians
-    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+#     # convert decimal degrees to radians
+#     lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
 
-    # haversine formula
-    dlon = lon2 - lon1
-    dlat = lat2 - lat1
+#     # haversine formula
+#     dlon = lon2 - lon1
+#     dlat = lat2 - lat1
 
-    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
-    c = 2 * asin(sqrt(a)) # 2 * atan2(sqrt(a), sqrt(1-a))
-    d = R * c
-    return d
+#     a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+#     c = 2 * asin(sqrt(a)) # 2 * atan2(sqrt(a), sqrt(1-a))
+#     d = R * c
+#     return d
 
-dist = distance_haversine(X, Y)
+# dist = distance_haversine(X, Y)
 
 # idx = pd.MultiIndex.from_arrays(arrays=[lons, lats], names=["lon", "lat"])
 # s = pd.Series(data=data, index=idx)

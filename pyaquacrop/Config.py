@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 
 import os
+import pandas as pd
+# import re
 import tomli
-import warnings
+# import collections
+# import typing
+# import warnings
 import logging
+
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -17,170 +24,303 @@ logger = logging.getLogger(__name__)
 #     'offset': 0.
 # }
 
-def load_config(configfile):
+
+# def _parse_weather_filename(config, raw_filename):
+#     path = os.path.dirname(raw_filename)
+#     filename = os.path.basename(raw_filename)
+#     if ~os.path.isabs(path):
+#         path = os.path.join(self.config['configpath'], path)
+#     regex = re.compile(str(filename))
+#     filenames = [os.path.join(path, f) for f in os.listdir(path) if regex.match(f)]
+#     # self.filenames = filenames
+
+
+def _parse_filename(configpath, raw_filename):
+    path = os.path.dirname(raw_filename)
+    filename = os.path.basename(raw_filename)
+    if ~os.path.isabs(path):
+        path = os.path.join(configpath, path)
+    filepath = os.path.join(path, filename)
+    return filepath
+
+
+@dataclass
+class ModelGridConfig:
+    use_file: bool
+    filename: str               # TODO convert to Path
+    mask_varname: str
+    is_1d: bool
+    xy_dimname: None
+
+
+@dataclass
+class ModelTimeConfig:
+    start_time: Any
+    end_time: Any
+
+
+@dataclass
+class WeatherConfig:
+    use: bool = False
+    filename: str = None
+    varname: str = None
+    is_1d: bool = None
+    xy_dimname: str = None
+    factor: float = 1.
+    offset: float = 0.
+
+
+@dataclass
+class ET0Config(WeatherConfig):
+    preprocess: bool = False
+    method: str = None
+
+
+def _parse_model_grid(config):
+    model_grid = config['MODEL_GRID']
+    use_file = True
+    if 'filename' not in model_grid:
+        raise KeyError('`MODEL_GRID` section must have entry `filename`')
+    filename = _parse_filename(config['configpath'], model_grid['filename'])
+    if 'mask_varname' not in model_grid:
+        raise KeyError('`MODEL_GRID` section must have entry `mask_varname`')
+    mask_varname = str(model_grid['mask_varname'])
+    if 'is_1d' not in model_grid:
+        raise KeyError('`MODEL_GRID` section must have entry `is_1d`')
+    is_1d = bool(model_grid['is_1d'])
+    if 'xy_dimname' not in model_grid:
+        if not is_1d:
+            xy_dimname = None
+        else:
+            raise KeyError('`MODEL_GRID` section must have energy `xy_dimname` is `is_1d` is true')
+    else:
+        xy_dimname = str(model_grid['xy_dimname'])
+    config['MODEL_GRID'] = ModelGridConfig(use_file, filename, mask_varname, is_1d, xy_dimname)
+    return config
+
+
+def _parse_model_time(config):
+    model_time = config['MODEL_TIME']
+    start_time = pd.Timestamp(model_time['start_time'])
+    end_time = pd.Timestamp(model_time['end_time'])
+    config['MODEL_TIME'] = ModelTimeConfig(start_time, end_time)
+    return config
+
+
+valid_et_methods = ['Hargreaves', 'PenmanMonteith']
+
+
+def _parse_reference_et(config):
+    config['ET0']['use'] = True
+    preprocess = bool(config['ET0']['preprocess'])
+    if preprocess:
+        method = str(config['ET0']['method'])
+        if method not in valid_et_methods:
+            raise ValueError('Invalid `method` for ET0')
+    config['ET0'] = ET0Config(**config['ET0'])
+    return config
+
+
+required_weather_vars = ['TMIN', 'TMAX', 'PREC']
+optional_weather_vars = ['TDEW', 'RHMAX', 'RHMIN', 'RHMEAN']
+
+
+def _parse_required_weather_data(config):
+    for var in required_weather_vars:
+        config[var]['use'] = True
+        if var not in config:
+            raise KeyError
+        config[var] = WeatherConfig(**config[var])
+    config = _parse_reference_et(config)
+    return config
+
+
+def _parse_optional_weather_data(config):
+    for var in optional_weather_vars:
+        if var in config:
+            if 'use' not in config[var]:
+                config[var]['use'] = False
+
+            if bool(config[var]['use']) is True:
+                config[var] = WeatherConfig(**config[var])
+            else:
+                config[var] = WeatherConfig()
+        else:
+            config[var] = WeatherConfig()
+    return config
+
+
+def _get_configpath(configfile):
     path = os.path.dirname(configfile)
     filename = os.path.basename(configfile)
     if os.path.isabs(path):
         path = path
     else:
         path = os.path.join(os.getcwd(), path)
+    return path, filename
 
-    configfile = os.path.join(path, filename)
-    with open(configfile, 'rb') as f:
+
+def load_config(configfile):
+    path, filename = _get_configpath(configfile)
+    with open(os.path.join(path, filename), 'rb') as f:
         config = tomli.load(f)
-
-    # Add path to config
     config['configpath'] = path
+    config = _parse_model_grid(config)
+    config = _parse_model_time(config)
+    config = _parse_required_weather_data(config)
+    config = _parse_optional_weather_data(config)
     return config
 
-# class Configuration:
 
-#     def __init__(
-#         self,
-#         configfile,
-#         # output_directory,
-#         # debug_mode=False,
-#         # system_arguments=None,
-#         **kwargs
-#     ):
-#         # Input files should be specified relative to the
-#         # location of the configuration file
-#         path = os.path.dirname(configfile)
-#         if os.path.isabs(path):
-#             self.configpath = path
-#         else:
-#             self.configpath = os.path.join(os.getcwd(), path)
+class Configuration:
+    def __init__(
+        self,
+        configfile,
+        **kwargs
+    ):
+        self.load_config(configfile)
 
-#         with open(configfile, 'rb') as f:
-#             self._toml_dict = tomli.load(f)
-#         self.parse_config_file()
-#         self.set_config()
+    def load_config(self, configfile):
+        path, filename = _get_configpath(configfile)
+        with open(os.path.join(path, filename), 'rb') as f:
+            config = tomli.load(f)
+        config['configpath'] = path
+        config = _parse_model_grid(config)
+        config = _parse_model_time(config)
+        config = _parse_required_weather_data(config)
+        config = _parse_optional_weather_data(config)
+        config_sections = config.keys()
+        for section in config_sections:
+            vars(self)[section] = config[section]
 
-#     def parse_config_file(self):
-#         config_sections = self._toml_dict.keys()
-#         for section in config_sections:
-#             vars(self)[section] = {}
-#             options = self._toml_dict[section].keys()
-#             for option in options:
-#                 self.__getattribute__(section)[option] = self._toml_dict[section][option]
+    @property
+    def has_max_daily_temperature(self):
+        return self.TMAX.use
 
-#     def set_config(self, system_arguments=None):
+    @property
+    def has_min_daily_temperature(self):
+        return self.TMIN.use
 
-#         # self.deterministic = kwargs.get('deterministic', False)
-#         # self.montecarlo = kwargs.get('montecarlo', False)
-#         # self.kalmanfilter = kwargs.get('kalmanfilter', False)
-#         # if self.deterministic:
-#         #     self.set_deterministic_run_options()
-#         # else:
-#         #     if self.montecarlo | self.kalmanfilter:
-#         #         self.set_montecarlo_run_options()
-#         #     if self.kalmanfilter:
-#         #         self.set_kalmanfilter_run_options()
-#         self.set_model_grid_options()
-#         self.set_weather_options()
-#         # self.set_etref_preprocess_options()
-#         # self.set_pseudo_coord_options()
-#         self.set_initial_condition_options()
-#         self.set_groundwater_options()
-#         self.set_soil_parameter_options()
-#         self.set_crop_parameter_options()
-#         self.set_irrigation_options()
-#         self.set_management_options()
-#         self.set_reporting_options()
 
-#     # def set_deterministic_run_options(self):
-#     #     pass
 
-#     # def set_montecarlo_run_options(self):
-#     #     pass
 
-#     # def set_kalmanfilter_run_options(self):
-#     #     pass
+    # def set_config(self, system_arguments=None):
 
-#     # def set_pseudo_coord_options(self):
-#     #     # make sure that pseudo-coordinates are lists
-#     #     if 'PSEUDO_COORDS' not in self.config_sections:
-#     #         self.PSEUDO_COORDS = {}
-#     #     else:
-#     #         for key, value in self.PSEUDO_COORDS.items():
-#     #             if isinstance(value, (int, float)):
-#     #                 self.PSEUDO_COORDS[key] = [value]
-#     #             elif isinstance(value, (str)):
-#     #                 self.PSEUDO_COORDS[key] = eval(value)
+    #     # self.deterministic = kwargs.get('deterministic', False)
+    #     # self.montecarlo = kwargs.get('montecarlo', False)
+    #     # self.kalmanfilter = kwargs.get('kalmanfilter', False)
+    #     # if self.deterministic:
+    #     #     self.set_deterministic_run_options()
+    #     # else:
+    #     #     if self.montecarlo | self.kalmanfilter:
+    #     #         self.set_montecarlo_run_options()
+    #     #     if self.kalmanfilter:
+    #     #         self.set_kalmanfilter_run_options()
+    #     self.set_model_grid_options()
+    #     self.set_weather_options()
+    #     # self.set_etref_preprocess_options()
+    #     # self.set_pseudo_coord_options()
+    #     self.set_initial_condition_options()
+    #     self.set_groundwater_options()
+    #     self.set_soil_parameter_options()
+    #     self.set_crop_parameter_options()
+    #     self.set_irrigation_options()
+    #     self.set_management_options()
+    #     self.set_reporting_options()
 
-#     def set_model_grid_options(self):
-#         pass
+    # # def set_deterministic_run_options(self):
+    # #     pass
 
-#     def set_weather_options(self):
-#         # weather_sections = [
-#         #     'PRECIPITATION',
-#         #     'TAVG',
-#         #     'TMIN',
-#         #     'TMAX',
-#         #     'LWDOWN',
-#         #     'SP',
-#         #     'SH',
-#         #     'RHMAX',
-#         #     'RHMIN',
-#         #     'RHMEAN',
-#         #     'SWDOWN',
-#         #     'WIND',
-#         #     'ETREF',
-#         #     'CARBON_DIOXIDE'
-#         # ]
-#         # for section in weather_sections:
-#         #     if section in vars(self):
-#         #         for opt, default_value in DEFAULT_INPUT_FILE_OPTS.items():
-#         #             if opt not in vars(self)[section].keys():
-#         #                 vars(self)[section][opt] = default_value
-#         #     else:
-#         #         vars(self)[section] = DEFAULT_INPUT_FILE_OPTS
-#         pass
+    # # def set_montecarlo_run_options(self):
+    # #     pass
 
-#     def set_initial_condition_options(self):
-#         pass
+    # # def set_kalmanfilter_run_options(self):
+    # #     pass
 
-#     def set_groundwater_options(self):
-#         pass
+    # # def set_pseudo_coord_options(self):
+    # #     # make sure that pseudo-coordinates are lists
+    # #     if 'PSEUDO_COORDS' not in self.config_sections:
+    # #         self.PSEUDO_COORDS = {}
+    # #     else:
+    # #         for key, value in self.PSEUDO_COORDS.items():
+    # #             if isinstance(value, (int, float)):
+    # #                 self.PSEUDO_COORDS[key] = [value]
+    # #             elif isinstance(value, (str)):
+    # #                 self.PSEUDO_COORDS[key] = eval(value)
 
-#     def set_soil_parameter_options(self):
-#         pass
+    # def set_model_grid_options(self):
+    #     pass
 
-#     def set_crop_parameter_options(self):
-#         pass
+    # def set_weather_options(self):
+    #     # weather_sections = [
+    #     #     'PRECIPITATION',
+    #     #     'TAVG',
+    #     #     'TMIN',
+    #     #     'TMAX',
+    #     #     'LWDOWN',
+    #     #     'SP',
+    #     #     'SH',
+    #     #     'RHMAX',
+    #     #     'RHMIN',
+    #     #     'RHMEAN',
+    #     #     'SWDOWN',
+    #     #     'WIND',
+    #     #     'ETREF',
+    #     #     'CARBON_DIOXIDE'
+    #     # ]
+    #     # for section in weather_sections:
+    #     #     if section in vars(self):
+    #     #         for opt, default_value in DEFAULT_INPUT_FILE_OPTS.items():
+    #     #             if opt not in vars(self)[section].keys():
+    #     #                 vars(self)[section][opt] = default_value
+    #     #     else:
+    #     #         vars(self)[section] = DEFAULT_INPUT_FILE_OPTS
+    #     pass
 
-#     def set_irrigation_options(self):
-#         pass
+    # def set_initial_condition_options(self):
+    #     pass
 
-#     def set_management_options(self):
-#         pass
+    # def set_groundwater_options(self):
+    #     pass
 
-#     def set_reporting_options(self):
-#         # if 'REPORTING' not in self.config_sections:
-#         #     self.REPORTING = {}
-#         # if 'report' not in list(self.REPORTING.keys()):
-#         #     self.REPORTING['report'] = False
-#         pass
+    # def set_soil_parameter_options(self):
+    #     pass
 
-#     # def check_config_file_for_required_entry(
-#     #         self,
-#     #         section_name,
-#     #         entry_name,
-#     #         allow_none=False,
-#     #         allow_empty=False
-#     # ):
-#     #     if entry_name not in list(vars(self)[section_name].keys()):
-#     #         raise KeyError(
-#     #             entry_name + ' in section ' + section_name + ' must be provided'
-#     #         )
-#     #     else:
-#     #         entry = vars(self)[section_name][entry_name]
-#     #         if not allow_none and (entry in VALID_NONE_VALUES):
-#     #             raise ValueError(
-#     #                 entry_name + ' in section ' + section_name + 'cannot by empty or none'
-#     #             )
-#     #         else:
-#     #             pass
+    # def set_crop_parameter_options(self):
+    #     pass
+
+    # def set_irrigation_options(self):
+    #     pass
+
+    # def set_management_options(self):
+    #     pass
+
+    # def set_reporting_options(self):
+    #     # if 'REPORTING' not in self.config_sections:
+    #     #     self.REPORTING = {}
+    #     # if 'report' not in list(self.REPORTING.keys()):
+    #     #     self.REPORTING['report'] = False
+    #     pass
+
+    # # def check_config_file_for_required_entry(
+    # #         self,
+    # #         section_name,
+    # #         entry_name,
+    # #         allow_none=False,
+    # #         allow_empty=False
+    # # ):
+    # #     if entry_name not in list(vars(self)[section_name].keys()):
+    # #         raise KeyError(
+    # #             entry_name + ' in section ' + section_name + ' must be provided'
+    # #         )
+    # #     else:
+    # #         entry = vars(self)[section_name][entry_name]
+    # #         if not allow_none and (entry in VALID_NONE_VALUES):
+    # #             raise ValueError(
+    # #                 entry_name + ' in section ' + section_name + 'cannot by empty or none'
+    # #             )
+    # #         else:
+    # #             pass
 
 # # class Configuration(object):
 # #     def __init__(
