@@ -35,15 +35,6 @@ logger = logging.getLogger(__name__)
 #     # self.filenames = filenames
 
 
-def _parse_filename(configpath, raw_filename):
-    path = os.path.dirname(raw_filename)
-    filename = os.path.basename(raw_filename)
-    if ~os.path.isabs(path):
-        path = os.path.join(configpath, path)
-    filepath = os.path.join(path, filename)
-    return filepath
-
-
 @dataclass
 class ModelGridConfig:
     use_file: bool
@@ -76,31 +67,79 @@ class ET0Config(WeatherConfig):
     method: str = None
 
 
+def _key_error_message(section, entry):
+    return f"`{section}` section must have entry `{entry}`"
+
+
+def _check_entry(config, section, entry):
+    if entry not in config[section]:
+        msg = _key_error_message(section, entry)
+        raise KeyError(msg)
+    return None
+
+
+def _parse_filename(configpath, raw_filename):
+    path = os.path.dirname(raw_filename)
+    filename = os.path.basename(raw_filename)
+    if ~os.path.isabs(path):
+        path = os.path.join(configpath, path)
+    filepath = os.path.join(path, filename)
+    return filepath
+
+
+def _parse_weather_data(config, section):
+    required_entries = ['filename', 'varname', 'is_1d']
+    for entry in required_entries:
+        _check_entry(config, section, entry)
+    filename = _parse_filename(config['configpath'], config[section]['filename'])
+    varname = str(config[section]['varname'])
+    is_1d = bool(config[section]['is_1d'])
+    if 'xy_dimname' not in config[section]:
+        if not is_1d:
+            xy_dimname = None
+        else:
+            raise KeyError(f'`{section}` section must have `xy_dimname` if `is_1d` is true')
+    else:
+        xy_dimname = str(config[section]['xy_dimname'])
+    parsed_entries = {
+        'filename': filename,
+        'varname': varname,
+        'is_1d': is_1d,
+        'xy_dimname': xy_dimname
+    }
+    # Handle other entries that may be present (e.g. factor, offset)
+    existing_entries = {k: v for k, v in config[section].items() if k not in parsed_entries.keys()}
+    return {**parsed_entries, **existing_entries}
+
+
 def _parse_model_grid(config):
     model_grid = config['MODEL_GRID']
     use_file = True
-    if 'filename' not in model_grid:
-        raise KeyError('`MODEL_GRID` section must have entry `filename`')
+    required_entries = ['filename', 'mask_varname', 'is_1d']
+    for entry in required_entries:
+        _check_entry(config, 'MODEL_GRID', entry)
     filename = _parse_filename(config['configpath'], model_grid['filename'])
-    if 'mask_varname' not in model_grid:
-        raise KeyError('`MODEL_GRID` section must have entry `mask_varname`')
     mask_varname = str(model_grid['mask_varname'])
-    if 'is_1d' not in model_grid:
-        raise KeyError('`MODEL_GRID` section must have entry `is_1d`')
     is_1d = bool(model_grid['is_1d'])
     if 'xy_dimname' not in model_grid:
         if not is_1d:
             xy_dimname = None
         else:
-            raise KeyError('`MODEL_GRID` section must have energy `xy_dimname` is `is_1d` is true')
+            raise KeyError('`MODEL_GRID` section must have `xy_dimname` if `is_1d` is true')
     else:
         xy_dimname = str(model_grid['xy_dimname'])
-    config['MODEL_GRID'] = ModelGridConfig(use_file, filename, mask_varname, is_1d, xy_dimname)
+    config['MODEL_GRID'] = ModelGridConfig(
+        use_file, filename, mask_varname,
+        is_1d, xy_dimname
+    )
     return config
 
 
 def _parse_model_time(config):
     model_time = config['MODEL_TIME']
+    required_entries = ['start_time', 'end_time']
+    for entry in required_entries:
+        _check_entry(config, 'MODEL_TIME', entry)
     start_time = pd.Timestamp(model_time['start_time'])
     end_time = pd.Timestamp(model_time['end_time'])
     config['MODEL_TIME'] = ModelTimeConfig(start_time, end_time)
@@ -112,36 +151,47 @@ valid_et_methods = ['Hargreaves', 'PenmanMonteith']
 
 def _parse_reference_et(config):
     config['ET0']['use'] = True
+
+    # Check if we need to compute ET0
+    if 'preprocess' not in config['ET0']:
+        raise KeyError(_key_error_message('ET0', 'preprocess'))
     preprocess = bool(config['ET0']['preprocess'])
+
+    # If preprocess is True, retrieve method
     if preprocess:
+        if 'method' not in config['ET0']:
+            raise KeyError('`ET0` section must have `method` if `preprocess` is true')
         method = str(config['ET0']['method'])
         if method not in valid_et_methods:
             raise ValueError('Invalid `method` for ET0')
+    else:
+        # Otherwise we need to read ET0 data from a file
+        config['method'] = None
+        config['ET0'] = _parse_weather_data(config, 'ET0')
+
     config['ET0'] = ET0Config(**config['ET0'])
     return config
 
 
-required_weather_vars = ['TMIN', 'TMAX', 'PREC']
-optional_weather_vars = ['TDEW', 'RHMAX', 'RHMIN', 'RHMEAN']
-
-
 def _parse_required_weather_data(config):
-    for var in required_weather_vars:
+    for var in ['TMIN', 'TMAX', 'PREC']:
         config[var]['use'] = True
         if var not in config:
             raise KeyError
+        config[var] = _parse_weather_data(config, var)
         config[var] = WeatherConfig(**config[var])
     config = _parse_reference_et(config)
     return config
 
 
 def _parse_optional_weather_data(config):
-    for var in optional_weather_vars:
+    for var in ['TDEW', 'RHMAX', 'RHMIN', 'RHMEAN']:
         if var in config:
             if 'use' not in config[var]:
                 config[var]['use'] = False
 
             if bool(config[var]['use']) is True:
+                config[var] = _parse_weather_data(config, var)
                 config[var] = WeatherConfig(**config[var])
             else:
                 config[var] = WeatherConfig()
@@ -158,18 +208,6 @@ def _get_configpath(configfile):
     else:
         path = os.path.join(os.getcwd(), path)
     return path, filename
-
-
-def load_config(configfile):
-    path, filename = _get_configpath(configfile)
-    with open(os.path.join(path, filename), 'rb') as f:
-        config = tomli.load(f)
-    config['configpath'] = path
-    config = _parse_model_grid(config)
-    config = _parse_model_time(config)
-    config = _parse_required_weather_data(config)
-    config = _parse_optional_weather_data(config)
-    return config
 
 
 class Configuration:
@@ -189,6 +227,8 @@ class Configuration:
         config = _parse_model_time(config)
         config = _parse_required_weather_data(config)
         config = _parse_optional_weather_data(config)
+
+        # Copy config sections to object
         config_sections = config.keys()
         for section in config_sections:
             vars(self)[section] = config[section]
@@ -201,7 +241,25 @@ class Configuration:
     def has_min_daily_temperature(self):
         return self.TMIN.use
 
+    @property
+    def has_precipitation(self):
+        return self.PREC.use
 
+    @property
+    def has_dewpoint_temperature(self):
+        return self.TDEW.use
+
+    @property
+    def has_max_relative_humidity(self):
+        return self.RHMAX.use
+
+    @property
+    def has_min_relative_humidity(self):
+        return self.RHMIN.use
+
+    @property
+    def has_mean_relative_humidity(self):
+        return self.RHMEAN.use
 
 
     # def set_config(self, system_arguments=None):

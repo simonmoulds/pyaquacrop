@@ -233,8 +233,6 @@ configfile = 'tests/testdata/config.toml'
 import pyaquacrop.Config
 importlib.reload(pyaquacrop.Config)
 from pyaquacrop.Config import load_config, Configuration
-# config = Configuration(configfile)
-config = load_config(configfile)
 config = Configuration(configfile)
 
 modelgrid = os.path.join(config['configpath'], config['MODEL_GRID']['filename'])
