@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import os
-import re
 import numpy as np
 import pandas as pd
 import xarray
@@ -10,43 +9,34 @@ import xarray
 
 class SpaceTimeDataArray:
     def __init__(self,
-                 config,
-                 filename,
-                 varname,
-                 # nc_varname,
-                 # model_varname,
+                 dataarray,
                  is_1d=False,
-                 xy_dimname=None,
-                 factor=1.,
-                 offset=0.):
+                 xy_dimname=None):
 
-        self.config = config
-        self._parse_filename(filename)
-        self.varname = varname
+        self._data = dataarray
         self.is_1d = is_1d
         self.xy_dimname = xy_dimname
-        self.factor = factor
-        self.offset = offset
-
-    def _parse_filename(self, raw_filename):
-        # TODO do this in load_config
-        path = os.path.dirname(raw_filename)
-        filename = os.path.basename(raw_filename)
-        if ~os.path.isabs(path):
-            path = os.path.join(self.config['configpath'], path)
-        regex = re.compile(str(filename))
-        filenames = [os.path.join(path, f) for f in os.listdir(path) if regex.match(f)]
-        self.filenames = filenames
 
     def initial(self):
-        self._data = xarray.open_mfdataset(self.filenames)
+        pass
 
     def select(self, lat, lon):
         self._data_subset = self._data.sel(lat=lat, lon=lon, method='nearest')
 
     @property
     def values(self):
-        return (self._data_subset[self.varname].values * self.factor) + self.offset
+        return self._data_subset.values
+
+
+# Function to create SpaceTimeDataArray from file
+def open_stdataarray(filename, varname, is_1d, xy_dimname, factor=1., offset=0.):
+    if isinstance(filename, str):
+        filename = [filename]
+
+    ds = xarray.open_mfdataset(filename)
+    da = ds[varname]
+    da = (da * factor) + offset
+    return SpaceTimeDataArray(da, is_1d, xy_dimname)
 
 
 def _climate_data_header(start_date: pd.Timestamp) -> str:
@@ -71,83 +61,73 @@ def _climate_data_header(start_date: pd.Timestamp) -> str:
     return header
 
 
-class Weather(SpaceTimeDataArray):
-    def __init__(self, config, config_section):
-        super().__init__(
-            config,
-            config[config_section]['filename'],
-            config[config_section]['varname'],
-            config[config_section]['is_1d'],
-            config[config_section]['xy_dimname'],
-            config[config_section]['factor'],
-            config[config_section]['offset']
-        )
+# class _Precipitation(SpaceTimeDataArray)
+# class _MaxTemperature(SpaceTimeDataArray):
+# class _MinTemperature(SpaceTimeDataArray):
+# class _DewTemperature(SpaceTimeDataArray):
+# class _WindSpeed(SpaceTimeDataArray):
+# class _U_WindSpeed(SpaceTimeDataArray):
+# class _SolarRadiation(SpaceTimeDataArray):
+# class _LongwaveRadiation(SpaceTimeDataArray):
+# class _MaxRelativeHumudity(SpaceTimeDataArray):
+# class _MinRelativeHumidity(SpaceTimeDataArray):
+# class _MeanRelativeHumidity(SpaceTimeDataArray):
+# class _SpecificHumidity(SpaceTimeDataArray):
+# class _SurfacePressure(SpaceTimeDataArray):
+
+class Precipitation(SpaceTimeDataArray):
+
+    def _write_aquacrop_input(self, filename):
+        header = _climate_data_header(pd.Timestamp(self.prec._data_subset.time.values[0]))
+        header += "  Total Rain (mm)" + os.linesep
+        header += "======================="
+        with open(filename, "w") as f:
+            np.savetxt(
+                f, self.values, fmt="%.2f", delimiter="\t",
+                newline=os.linesep, header=header, comments=""
+            )
+        return None
 
 
-class _MaxTemperature(Weather):
-    def __init__(self, config):
-        super().__init__(config, 'TMAX')
+def _open_weather_dataarray(config, config_section):
+
+    # Retrieve values from config
+    filename = vars(config)[config_section].filename,
+    varname = vars(config)[config_section].varname,
+    is_1d = vars(config)[config_section].is_1d,
+    xy_dimname = vars(config)[config_section].xy_dimname,
+    factor = vars(config)[config_section].factor,
+    offset = vars(config)[config_section].offset
+
+    # Open dataset then select dataarray
+    if isinstance(filename, str):
+        filename = [filename]
+    ds = xarray.open_mfdataset(filename)
+    da = ds[varname]
+
+    # Apply factor/offset
+    da = (da * factor) + offset
+    return da
 
 
-class _MinTemperature(Weather):
-    def __init__(self, config):
-        super().__init__(config, 'TMIN')
+def _open_precipitation_stdataarray(config):
+    da = open_weather_dataarray(config, 'PREC')
+    return Precipitation(da, is_1d, xy_dimname)
 
 
-class _DewTemperature(SpaceTimeDataArray):
-    def __init__(self, config):
-        super().__init__(config, 'TDEW')
-
-
-class _WindSpeed(SpaceTimeDataArray):
-    def __init__(self, config):
-        super().__init__(config, 'WIND')
-
-
-class _U_WindSpeed(SpaceTimeDataArray):
-    def __init__(self, config):
-        super().__init__(config, 'U_WIND')
-
-
-class _SolarRadiation(SpaceTimeDataArray):
-    def __init__(self, config):
-        super().__init__(config, 'SWDOWN')
-
-
-class _LongwaveRadiation(SpaceTimeDataArray):
-    def __init__(self, config):
-        super().__init__(config, 'LWDOWN')
-
-
-class _MaxRelativeHumudity(SpaceTimeDataArray):
-    def __init__(self, config):
-        super().__init__(config, 'RHMAX')
-
-
-class _MinRelativeHumidity(SpaceTimeDataArray):
-    def __init__(self, config):
-        super().__init__(config, 'RHMIN')
-
-
-class _MeanRelativeHumidity(SpaceTimeDataArray):
-    def __init__(self, config):
-        super().__init__(config, 'RHMEAN')
-
-
-class _SpecificHumidity(SpaceTimeDataArray):
-    def __init__(self, config):
-        super().__init__(config, 'SH')
-
-
-class _SurfacePressure(SpaceTimeDataArray):
-    def __init__(self, config):
-        super().__init__(config, 'PRES')
+def _open_weather_stdataarray(config, config_section):
+    da = _open_weather_dataarray(config, config_section)
+    return SpaceTimeDataArray(
+        da,
+        vars(config)[config_section].is_1d,
+        vars(config)[config_section].xy_dimname
+    )
 
 
 class Temperature:
     def __init__(self, config):
-        self.tmin = _MaxTemperature(config)
-        self.tmax = _MaxTemperature(config)
+        self.tmin = _open_weather_stdataarray(config, 'TMIN')
+        self.tmax = _open_weather_stdataarray(config, 'TMAX')
 
     def initial(self):
         self.tmin.initial()
@@ -173,31 +153,24 @@ class Temperature:
         return None
 
 
-class Precipitation(Weather):
+class ET0_FromFile:
     def __init__(self, config):
-        super().__init__(config, 'PREC')
+        self.eto = _open_weather_stdataarray(config, 'ET0')
 
-    def _write_aquacrop_input(self, filename):
-        header = _climate_data_header(pd.Timestamp(self._data_subset.time.values[0]))
-        header += "  Total Rain (mm)" + os.linesep
-        header += "======================="
-        with open(filename, "w") as f:
-            np.savetxt(
-                f, self.values, fmt="%.2f", delimiter="\t",
-                newline=os.linesep, header=header, comments=""
-            )
-        return None
+    # def initial(self):
+    #     self.prec.initial()
+
+    # def select(self, lat, lon):
+    #     self.prec.select(lat, lon)
+
+    # @property
+    # def values(self):
+    #     return self.prec.values
 
 
-# Use this in config function?
-def _check_valid_input(config, config_section):
-    if config_section not in config.keys():
-        return False
-    if 'filename' not in config[config_section]:
-        return False
-    if not os.path.exists(config[config_section]['filename']):
-        return False
-    return True
+class ET0_PenmanMonteith:
+    def __init__(self, config):
+        pass
 
 
 class _NetRadiation:
@@ -328,14 +301,182 @@ def _compute_saturation_vapour_pressure(model):
     return es
 
 
-def _compute_actual_vapour_pressure(model):
+# def _fao_equation_17():
+#     ea_mean = (
+#         (model.es_min * model.max_relative_humidity.values / 100.)
+#         + (model.es_max * model.min_relative_humidity.values / 100.)
+#     ) / 2
 
-class _ActualVapourPressure(object):
+# def _compute_actual_vapour_pressure(model):
+
+# class _ActualVapourPressure(object):
+#     def __init__(self, model):
+#         self.model = model
+#         self.eps = 0.622  # ratio of water vapour/dry air molecular weights [-]
+
+#     def initial(self):
+#         if self.can_use_fao_equation_17():
+#             self.compute_actual_vapour_pressure_from_relative_humidity()
+#         elif self.can_use_fao_equation_18():
+#             self.compute_actual_vapour_pressure_from_relative_humidity()
+#         elif self.can_use_fao_equation_19():
+#             self.compute_actual_vapour_pressure_from_relative_humidity()
+#         elif self.model.config.has_specific_humidity:
+#             self.compute_actual_vapour_pressure_from_specific_humidity()
+
+#     def compute_actual_vapour_pressure_from_specific_humidity(self):
+#         """Compute actual vapour pressure given specific
+#         humidity, using equations from Bolton (1980;
+#         """
+#         def ea(Pres, Q, eps):
+#             return (Q * Pres) / ((1 - eps) * Q + eps)
+
+#         self.model.ea = ea(
+#             self.model.surface_pressure,
+#             self.model.specific_humidity,
+#             self.eps
+#         )
+
+    # def compute_actual_vapour_pressure_from_relative_humidity(self):
+    #     self.model.ea_mean = (
+    #         (self.model.es_min * self.model.max_relative_humidity.values / 100.)
+    #         + (self.model.es_max * self.model.min_relative_humidity.values / 100.)
+    #     ) / 2
+
+    # def compute_actual_vapour_pressure_from_min_max_relative_humidity(self):
+    #     self.model.ea_mean = self.model.es_min * self.model.max_relative_humidity.values / 100.
+
+    # def compute_actual_vapour_pressure_from_mean_relative_humidity(self):
+    #     self.model.ea_mean = self.model.es_mean * self.model.mean_relative_humidity.values / 100.
+
+    # def can_use_fao_equation_17(self):
+    #     return (
+    #         self.model.config.has_min_daily_temperature
+    #         and self.model.config.has_max_daily_temperature
+    #         and self.model.config.has_min_relative_humidity
+    #         and self.model.config.has_max_relative_humidity
+    #     )
+
+    # def can_use_fao_equation_18(self):
+    #     return (
+    #         self.model.config.has_min_daily_temperature
+    #         and self.model.config.has_max_relative_humidity
+    #     )
+
+    # def can_use_fao_equation_19(self):
+    #     return (
+    #         self.model.config.has_max_daily_temperature
+    #         and self.model.config.has_min_daily_temperature
+    #         and self.model.config.has_mean_relative_humidity
+    #     )
+
+
+# class VapourPressureDeficit(object):
+#     def __init__(self, model):
+#         self.model = model
+
+#     def initial(self):
+#         self.model.vapour_pressure_deficit = np.zeros((self.model.domain.nxy))
+
+#     def compute_vapour_pressure_deficit(self):
+#         self.model.vapour_pressure_deficit = np.clip(
+#             self.model.es_mean - self.model.ea_mean,
+#             0,
+#             None
+#         )
+
+#     def dynamic(self):
+#         self.compute_vapour_pressure_deficit()
+
+
+class _ET0_InputData:
     def __init__(self, model):
-        self.model = model
-        self.eps = 0.622  # ratio of water vapour/dry air molecular weights [-]
+        self.model = model      # This means we can access other variables
+        # User-supplied:
+        self.tmin = None
+        self.tmax = None
+        self.shortwave_radiation = None
+        self.max_relative_humidity = None
+        self.min_relative_humidity = None
+        self.mean_relative_humidity = None
+        # Computed:
+        self.extraterrestrial_radiation = None
+        self.es = None
+        self.ea = None
+        self.net_radiation = None
 
-    def initial(self):
+    def _load_tmin(self):
+        self.tmin = _open_weather_dataarray(self.config, 'TMIN')
+
+    def _load_tmax(self):
+        self.tmax = _open_weather_dataarray(self.config, 'TMAX')
+
+    def _load_solar_radiation(self):
+        """Load or calculate solar radiation"""
+        if self.model.config.has_solar_radiation:
+            self.shortwave_radiation = _open_weather_dataarray(self.model.config, 'SWDOWN')
+
+    def _load_extrat_radiation(self):
+        """Compute extraterrestrial radiation (MJ m-2 d-1)"""
+        latitude = self.model.domain.latitude
+        if model.domain.is_2d:
+            latitude = latitude[:, None] * np.ones(self.model.domain.nx)  # lat, lon
+
+        days = self.model.time.days
+        LatRad = latitude * np.pi / 180.0
+        declin = 0.4093 * (
+            np.sin(((2.0 * np.pi * days) / 365.) - 1.405)
+        )
+        # Broadcast so that arccosInput has dims (time, space)
+        arccosInput = (-(np.tan(LatRad[None, ...])) * (np.tan(declin[..., None])))
+        arccosInput = np.clip(arccosInput, -1, 1)
+        sunangle = np.arccos(arccosInput)
+        distsun = 1 + 0.033 * (np.cos((2 * np.pi * days) / 365.0))
+        extraterrestrial_radiation = (
+            ((24 * 60 * 0.082) / np.pi)
+            * distsun[..., None]
+            * (sunangle
+               * (np.sin(LatRad[None, ...]))
+               * (np.sin(declin[..., None]))
+               + (np.cos(LatRad[None, ...]))
+               * (np.cos(declin)[..., None])
+               * (np.sin(sunangle)))
+        )  # TODO - check this!!!
+
+        # Now create DataArray
+        space_coords = {
+            key: (self.model.domain._data.coords[key].dims, model.domain._data.coords[key].values)
+            for key in self.model.domain._data.coords
+        }
+        time_coords = {'time': self.model.time.values}
+        coords = {**time_coords, **space_coords}
+        dims = ['time'] + [dim for dim in self.model.domain._data.dims]
+        self.extraterrestrial_radiation = xarray.Dataset(
+            data_vars=dict(
+                extraterrestrial_radiation=(dims, extraterrestrial_radiation)
+            ),
+            coords=coords
+        )
+
+    def _load_max_relative_humidity(self):
+        if self.model.config.has_max_relative_humidity:
+            self.max_relative_humidity = _open_weather_dataarray(
+                self.model.config, 'RHMAX'
+            )
+
+    def _load_min_relative_humidity(self):
+        if self.model.config.has_min_relative_humidity:
+            self.min_relative_humidity = _open_weather_dataarray(
+                self.model.config, 'RHMIN'
+            )
+
+    def _load_wind_speed(self):
+        pass
+
+    def _load_es(self):
+        pass
+
+    def _load_ea(self):
         if self.can_use_fao_equation_17():
             self.compute_actual_vapour_pressure_from_relative_humidity()
         elif self.can_use_fao_equation_18():
@@ -347,28 +488,33 @@ class _ActualVapourPressure(object):
 
     def compute_actual_vapour_pressure_from_specific_humidity(self):
         """Compute actual vapour pressure given specific
-        humidity, using equations from Bolton (1980;
+        humidity, using equations from Bolton (1980);
         """
         def ea(Pres, Q, eps):
             return (Q * Pres) / ((1 - eps) * Q + eps)
 
-        self.model.ea = ea(
+        self.ea_mean = ea(
             self.model.surface_pressure,
             self.model.specific_humidity,
             self.eps
         )
 
     def compute_actual_vapour_pressure_from_relative_humidity(self):
-        self.model.ea_mean = (
-            (self.model.es_min * self.model.max_relative_humidity.values / 100.)
-            + (self.model.es_max * self.model.min_relative_humidity.values / 100.)
+        self.ea_mean = (
+            (self.es_min * self.max_relative_humidity.values / 100.)
+            + (self.es_max * self.min_relative_humidity.values / 100.)
         ) / 2
 
     def compute_actual_vapour_pressure_from_min_max_relative_humidity(self):
-        self.model.ea_mean = self.model.es_min * self.model.max_relative_humidity.values / 100.
+        self.ea_mean = (
+            self.es_min
+            * self.max_relative_humidity.values / 100.
+        )
 
     def compute_actual_vapour_pressure_from_mean_relative_humidity(self):
-        self.model.ea_mean = self.model.es_mean * self.model.mean_relative_humidity.values / 100.
+        self.ea_mean = (
+            self.es_mean * self.mean_relative_humidity.values / 100.
+        )
 
     def can_use_fao_equation_17(self):
         return (
@@ -391,37 +537,45 @@ class _ActualVapourPressure(object):
             and self.model.config.has_mean_relative_humidity
         )
 
-
-# class VapourPressureDeficit(object):
-#     def __init__(self, model):
-#         self.model = model
-
-#     def initial(self):
-#         self.model.vapour_pressure_deficit = np.zeros((self.model.domain.nxy))
-
-#     def compute_vapour_pressure_deficit(self):
-#         self.model.vapour_pressure_deficit = np.clip(
-#             self.model.es_mean - self.model.ea_mean,
-#             0,
-#             None
-#         )
-
-#     def dynamic(self):
-#         self.compute_vapour_pressure_deficit()
+    def _load_net_radiation(self):
+        # requirements:
+        # extraterrestrial_radiation
+        # shortwave_radiation
+        # tmin, tmax
+        # ea_mean
+        alpha = 0.23  # albedo, 0.23 [-]
+        sigma = 4.903e-9  # stephan boltzmann [W m-2 K-4]
+        Rso = np.maximum(
+            0.1,
+            ((0.75 + (2 * 0.00005)) * self.extraterrestrial_radiation)
+        )  # clear sky solar radiation MJ d-1
+        Rsin_MJ = 0.086400 * self.shortwave_radiation.values
+        Rlnet_MJ = (
+            - sigma
+            * ((self.tmax.values ** 4 + self.tmin.values ** 4) / 2)
+            * (0.34 - 0.14 * np.sqrt(np.maximum(0, (self.ea_mean / 1000))))
+            * (1.35 * np.minimum(1, (Rsin_MJ / Rso)) - 0.35)
+        )
+        Rlnet_Watt = Rlnet_MJ / 0.086400
+        net_radiation = np.maximum(
+            0,
+            ((1 - alpha) * self.model.shortwave_radiation.values + Rlnet_Watt)
+        )
 
 
 class _ET0_PenmanMonteith:
     def __init__(self, config):
         # Idea here is to have exactly the variables we need, and provide a class for that variable which either reads it directly or computes it from other variables
-        self.config = config
-        self.tmin = _MinTemperature(config)
-        self.tmax = _MaxTemperature(config)
-        self.swdown = _SolarRadiation(config)
-        self.extrat = _ExtraterrestrialRadiation(config)
-        self.wind_speed = _WindSpeed(config)
-        self.net_radiation = _NetRadiation(config)
-        self.es = _SaturationVapourPressure(config)
-        self.ea = _ActualVapourPressure(config)
+        pass
+        # self.config = config
+        # self.tmin = _MinTemperature(config)
+        # self.tmax = _MaxTemperature(config)
+        # self.swdown = _SolarRadiation(config)
+        # self.extrat = _ExtraterrestrialRadiation(config)
+        # self.wind_speed = _WindSpeed(config)
+        # self.net_radiation = _NetRadiation(config)
+        # self.es = _SaturationVapourPressure(config)
+        # self.ea = _ActualVapourPressure(config)
         # # self.delta = _SaturationVapourPressureSlope(config)
         # self.soil_heat_flux = _SoilHeatFlux(config)
 
@@ -438,8 +592,9 @@ class _ET0_PenmanMonteith:
 
 class _ET0_Hargreaves:
     def __init__(self, config):
-        self.tmin = _MinTemperature(config)
-        self.tmax = _MaxTemperature(config)
+        pass
+        # self.tmin = _MinTemperature(config)
+        # self.tmax = _MaxTemperature(config)
 
     def initial(self):
         pass
@@ -454,8 +609,9 @@ class _ET0_Hargreaves:
 
 class _ET0_PriestleyTaylor:
     def __init__(self, config):
-        self.tmin = _MinTemperature(config)
-        self.tmax = _MaxTemperature(config)
+        pass
+        # self.tmin = _MinTemperature(config)
+        # self.tmax = _MaxTemperature(config)
 
     def initial(self):
         pass
@@ -470,7 +626,7 @@ class _ET0_PriestleyTaylor:
 
 class _ET0_FromFile:
     def __init__(self, config):
-        super().__init__(config, 'ET0')
+        pass
 
 
 class ET0(SpaceTimeDataArray):

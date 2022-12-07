@@ -3,7 +3,7 @@
 import pandas as pd
 import xarray
 
-from .Config import load_config
+from .Config import Configuration
 from .Domain import Domain
 from .ModelTime import ModelTime
 from .Weather import Temperature, Precipitation, ET0
@@ -14,18 +14,18 @@ from .Weather import Temperature, Precipitation, ET0
 class AquaCrop:
 
     def __init__(self, configfile):
-        self.config = load_config(configfile)
+        self.config = Configuration(configfile)
         self.set_domain()
         self.set_time()
 
     def set_domain(self):
-        model_grid = self.config['MODEL_GRID']
-        use_file = model_grid['use_file']
+        model_grid = self.config.MODEL_GRID
+        use_file = model_grid.use_file
         if use_file:
-            ds = xarray.open_dataset(model_grid['filename'])
+            ds = xarray.open_dataset(model_grid.filename)
         else:
-            x = model_grid['x']
-            y = model_grid['y']
+            x = model_grid.x
+            y = model_grid.y
             space = [i+1 for i in range(len(x))]
             ds = xarray.Dataset(
                 data_vars=dict(
@@ -36,18 +36,18 @@ class AquaCrop:
                     space=(["space"], space)
                 )
             )
-            self.config['MODEL_GRID']['is_1d'] = True
-            self.config['MODEL_GRID']['xy_dimname'] = "space"
+            self.config.MODEL_GRID.is_1d = True
+            self.config.MODEL_GRID.xy_dimname = "space"
 
         self.domain = Domain(
             ds,
-            self.config['MODEL_GRID']['is_1d'],
-            self.config['MODEL_GRID']['xy_dimname']
+            self.config.MODEL_GRID.is_1d,
+            self.config.MODEL_GRID.xy_dimname
         )
 
     def set_time(self):
-        starttime = self.config['MODEL_TIME']['start_time']
-        endtime = self.config['MODEL_TIME']['end_time']
+        starttime = self.config.MODEL_TIME.start_time
+        endtime = self.config.MODEL_TIME.end_time
         timedelta = pd.Timedelta(1, unit='D')
         self.time = ModelTime(starttime, endtime, timedelta)
 

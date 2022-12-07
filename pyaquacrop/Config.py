@@ -2,7 +2,7 @@
 
 import os
 import pandas as pd
-# import re
+import re
 import tomli
 # import collections
 # import typing
@@ -23,16 +23,6 @@ logger = logging.getLogger(__name__)
 #     'factor': 1.,
 #     'offset': 0.
 # }
-
-
-# def _parse_weather_filename(config, raw_filename):
-#     path = os.path.dirname(raw_filename)
-#     filename = os.path.basename(raw_filename)
-#     if ~os.path.isabs(path):
-#         path = os.path.join(self.config['configpath'], path)
-#     regex = re.compile(str(filename))
-#     filenames = [os.path.join(path, f) for f in os.listdir(path) if regex.match(f)]
-#     # self.filenames = filenames
 
 
 @dataclass
@@ -83,8 +73,12 @@ def _parse_filename(configpath, raw_filename):
     filename = os.path.basename(raw_filename)
     if ~os.path.isabs(path):
         path = os.path.join(configpath, path)
-    filepath = os.path.join(path, filename)
-    return filepath
+    # filepath = os.path.join(path, filename)
+    regex = re.compile(str(filename))
+    filepaths = [os.path.join(path, f) for f in os.listdir(path) if regex.match(f)]
+    # if len(filepaths) == 1:
+    #     filepaths = filepaths[0]
+    return filepaths
 
 
 def _parse_weather_data(config, section):
@@ -261,6 +255,9 @@ class Configuration:
     def has_mean_relative_humidity(self):
         return self.RHMEAN.use
 
+    @property
+    def has_solar_radiation(self):
+        return self.SWDOWN.use
 
     # def set_config(self, system_arguments=None):
 
