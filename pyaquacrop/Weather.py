@@ -110,6 +110,10 @@ def _open_weather_dataarray(config, config_section):
     return da
 
 
+def _open_spatial_dataarray(config, config_section):
+    return _open_weather_dataarray(config, config_section)
+
+
 def _open_precipitation_stdataarray(config):
     da = open_weather_dataarray(config, 'PREC')
     return Precipitation(da, is_1d, xy_dimname)
@@ -286,21 +290,6 @@ def _compute_extraterrestrial_radiation(model):
     return arr
 
 
-def _compute_saturation_vapour_pressure(model):
-    def es(T):
-        return (
-            610.8 *
-            np.exp((17.27 * (T - 273.15)) / ((T - 273.15) + 237.3))
-        )
-    if 'tmin' in kwargs and 'tmax' in kwargs:
-        es_min = es(kwargs['tmin']._data)
-        es_max = es(kwargs['tmax']._data)
-        es = (es_min + es_max) / 2.
-    elif 'tmean' in kwargs:
-        es = es(kwargs['tmean']._data)
-    return es
-
-
 # def _fao_equation_17():
 #     ea_mean = (
 #         (model.es_min * model.max_relative_humidity.values / 100.)
@@ -399,10 +388,11 @@ class _ET0_InputData:
         self.max_relative_humidity = None
         self.min_relative_humidity = None
         self.mean_relative_humidity = None
+        self.surface_pressure = None
         # Computed:
         self.extraterrestrial_radiation = None
-        self.es = None
-        self.ea = None
+        self.saturated_vapour_pressure = None
+        self.actual_vapour_pressure = None
         self.net_radiation = None
 
     def _load_tmin(self):
@@ -411,10 +401,49 @@ class _ET0_InputData:
     def _load_tmax(self):
         self.tmax = _open_weather_dataarray(self.config, 'TMAX')
 
-    def _load_solar_radiation(self):
-        """Load or calculate solar radiation"""
+    def _load_shortwave_radiation(self):
         if self.model.config.has_solar_radiation:
             self.shortwave_radiation = _open_weather_dataarray(self.model.config, 'SWDOWN')
+
+    def _load_max_relative_humidity(self):
+        if self.model.config.has_max_relative_humidity:
+            self.max_relative_humidity = _open_weather_dataarray(
+                self.model.config, 'RHMAX'
+            )
+
+    def _load_min_relative_humidity(self):
+        if self.model.config.has_min_relative_humidity:
+            self.min_relative_humidity = _open_weather_dataarray(
+                self.model.config, 'RHMIN'
+            )
+
+    def _load_min_relative_humidity(self):
+        if self.model.config.has_mean_relative_humidity:
+            self.mean_relative_humidity = _open_weather_dataarray(
+                self.model.config, 'RHMEAN'
+            )
+
+    def _load_wind_speed(self):
+        if self.model.config.has_wind:
+            if self.model.config.use_wind_components:
+                wind_u = _open_weather_dataarray(self.model.config, 'WIND_U')
+                wind_v = _open_weather_dataarray(self.model.config, 'WIND_V')
+                self.wind = np.sqrt(wind_u ** 2 + wind_v ** 2)
+            else:
+                self.wind = _open_weather_dataarray(self.model.config, 'WIND')
+
+    def _load_surface_pressure(self):
+        if self.model.config.has_surface_pressure:
+            self.surface_pressure = _open_weather_dataarray(
+                self.model.config, 'PRES'
+            )
+        elif self.model.config.has_elevation:
+            elevation = _open_spatial_dataarray(
+                self.model.config, 'ELEV'
+            )
+            self.surface_pressure = (
+                101.3 * ((293. - 0.0065 * elevation) / 293) ** 5.26
+            )
 
     def _load_extrat_radiation(self):
         """Compute extraterrestrial radiation (MJ m-2 d-1)"""
@@ -458,25 +487,22 @@ class _ET0_InputData:
             coords=coords
         )
 
-    def _load_max_relative_humidity(self):
-        if self.model.config.has_max_relative_humidity:
-            self.max_relative_humidity = _open_weather_dataarray(
-                self.model.config, 'RHMAX'
-            )
-
-    def _load_min_relative_humidity(self):
-        if self.model.config.has_min_relative_humidity:
-            self.min_relative_humidity = _open_weather_dataarray(
-                self.model.config, 'RHMIN'
-            )
-
-    def _load_wind_speed(self):
-        pass
+    def _fao_equation_11(T):
+        return (
+            610.8 *
+            np.exp((17.27 * (T - 273.15)) / ((T - 273.15) + 237.3))
+        )
 
     def _load_es(self):
-        pass
+        """Compute saturated vapour pressure."""
+        es_min = self._fao_equation_11(self.tmin)
+        es_max = self._fao_equation_11(self.tmax)
+        self.es = (es_min + es_max) / 2.
+        return es
 
     def _load_ea(self):
+        if self.can_use_fao_equation_14():
+            self.compute_actual_vapour_pressure_from_dewpoint_temperature()
         if self.can_use_fao_equation_17():
             self.compute_actual_vapour_pressure_from_relative_humidity()
         elif self.can_use_fao_equation_18():
@@ -486,6 +512,9 @@ class _ET0_InputData:
         elif self.model.config.has_specific_humidity:
             self.compute_actual_vapour_pressure_from_specific_humidity()
 
+    def compute_actual_vapour_pressure_from_dewpoint_temperature(self):
+        self.actual_vapour_pressure = self._fao_equation_11(self.tdew)
+
     def compute_actual_vapour_pressure_from_specific_humidity(self):
         """Compute actual vapour pressure given specific
         humidity, using equations from Bolton (1980);
@@ -493,28 +522,35 @@ class _ET0_InputData:
         def ea(Pres, Q, eps):
             return (Q * Pres) / ((1 - eps) * Q + eps)
 
-        self.ea_mean = ea(
-            self.model.surface_pressure,
-            self.model.specific_humidity,
-            self.eps
+        eps = 0.622  # ratio of water vapour/dry air molecular weights [-]
+        self.actual_vapour_pressure = ea(
+            self.surface_pressure,
+            self.specific_humidity,
+            eps
         )
 
     def compute_actual_vapour_pressure_from_relative_humidity(self):
+        es_min = self._fao_equation_11(self.tmin)
+        es_max = self._fao_equation_11(self.tmax)
         self.ea_mean = (
-            (self.es_min * self.max_relative_humidity.values / 100.)
-            + (self.es_max * self.min_relative_humidity.values / 100.)
+            (es_min * self.max_relative_humidity.values / 100.)
+            + (es_max * self.min_relative_humidity.values / 100.)
         ) / 2
 
     def compute_actual_vapour_pressure_from_min_max_relative_humidity(self):
-        self.ea_mean = (
+        es_min = self._fao_equation_11(self.tmin)
+        self.actual_vapour_pressure = (
             self.es_min
             * self.max_relative_humidity.values / 100.
         )
 
     def compute_actual_vapour_pressure_from_mean_relative_humidity(self):
-        self.ea_mean = (
-            self.es_mean * self.mean_relative_humidity.values / 100.
+        self.actual_vapour_pressure = (
+            self.saturated_vapour_pressure * self.mean_relative_humidity.values / 100.
         )
+
+    def can_use_fao_equation_14(self):
+        return self.model.config.has_dewpoint_temperature
 
     def can_use_fao_equation_17(self):
         return (
@@ -552,14 +588,14 @@ class _ET0_InputData:
         Rsin_MJ = 0.086400 * self.shortwave_radiation.values
         Rlnet_MJ = (
             - sigma
-            * ((self.tmax.values ** 4 + self.tmin.values ** 4) / 2)
-            * (0.34 - 0.14 * np.sqrt(np.maximum(0, (self.ea_mean / 1000))))
+            * ((self.tmax ** 4 + self.tmin ** 4) / 2)
+            * (0.34 - 0.14 * np.sqrt(np.maximum(0, (self.actual_vapour_pressure / 1000))))
             * (1.35 * np.minimum(1, (Rsin_MJ / Rso)) - 0.35)
         )
         Rlnet_Watt = Rlnet_MJ / 0.086400
         net_radiation = np.maximum(
             0,
-            ((1 - alpha) * self.model.shortwave_radiation.values + Rlnet_Watt)
+            ((1 - alpha) * self.shortwave_radiation + Rlnet_Watt)
         )
 
 

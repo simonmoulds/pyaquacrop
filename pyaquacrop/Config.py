@@ -259,6 +259,14 @@ class Configuration:
     def has_solar_radiation(self):
         return self.SWDOWN.use
 
+    @property
+    def has_wind(self):
+        return ((self.WIND_U.use and self.WIND_V.use) | self.WIND.use)
+
+    @property
+    def use_wind_components(self):
+        return (self.WIND_U.use and self.WIND_V.use)
+
     # def set_config(self, system_arguments=None):
 
     #     # self.deterministic = kwargs.get('deterministic', False)
