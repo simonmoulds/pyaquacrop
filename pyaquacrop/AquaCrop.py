@@ -6,7 +6,7 @@ import xarray
 from .Config import Configuration
 from .Domain import Domain
 from .ModelTime import ModelTime
-from .Weather import Temperature, Precipitation, ET0
+# from .Weather import Temperature, Precipitation, ET0
 
 # FIXME implement BMI
 
@@ -22,7 +22,7 @@ class AquaCrop:
         model_grid = self.config.MODEL_GRID
         use_file = model_grid.use_file
         if use_file:
-            ds = xarray.open_dataset(model_grid.filename)
+            ds = xarray.open_mfdataset(model_grid.filename)
         else:
             x = model_grid.x
             y = model_grid.y

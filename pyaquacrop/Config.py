@@ -85,7 +85,9 @@ def _parse_weather_data(config, section):
     required_entries = ['filename', 'varname', 'is_1d']
     for entry in required_entries:
         _check_entry(config, section, entry)
-    filename = _parse_filename(config['configpath'], config[section]['filename'])
+    filename = _parse_filename(
+        config['configpath'], config[section]['filename']
+    )
     varname = str(config[section]['varname'])
     is_1d = bool(config[section]['is_1d'])
     if 'xy_dimname' not in config[section]:
@@ -179,7 +181,7 @@ def _parse_required_weather_data(config):
 
 
 def _parse_optional_weather_data(config):
-    for var in ['TDEW', 'RHMAX', 'RHMIN', 'RHMEAN']:
+    for var in ['TDEW', 'RHMAX', 'RHMIN', 'RHMEAN', 'SH', 'SWDOWN', 'LWDOWN', 'WIND', 'WIND_U', 'WIND_V', 'SP']:
         if var in config:
             if 'use' not in config[var]:
                 config[var]['use'] = False
@@ -240,6 +242,14 @@ class Configuration:
         return self.PREC.use
 
     @property
+    def has_surface_pressure(self):
+        return self.SP.use
+
+    @property
+    def has_elevation(self):
+        return False
+
+    @property
     def has_dewpoint_temperature(self):
         return self.TDEW.use
 
@@ -250,6 +260,10 @@ class Configuration:
     @property
     def has_min_relative_humidity(self):
         return self.RHMIN.use
+
+    @property
+    def has_specific_humidity(self):
+        return self.SH.use
 
     @property
     def has_mean_relative_humidity(self):

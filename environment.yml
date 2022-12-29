@@ -1,0 +1,28 @@
+name: pyaquacrop-dev
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python-box
+  - dask
+  - metpy
+  - netCDF4
+  - pandas
+  - python=3
+  - pip
+  - pyarrow
+  - tqdm
+  - xarray
+  - pip:
+    - bump2version
+    - wheel
+    - watchdog
+    - flake8
+    - tox
+    - coverage
+    - Sphinx
+    - twine
+    - click
+    - pytest
+    - black
+    - tomli
