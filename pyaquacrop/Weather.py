@@ -8,37 +8,39 @@ import xarray
 from pint.errors import DimensionalityError
 import warnings
 
+from .Domain import get_xr_coordinates
+from .constants import allowed_t_dim_names
 
-class SpaceTimeDataArray:
-    def __init__(self,
-                 dataarray,
-                 is_1d=False,
-                 xy_dimname=None):
+# class SpaceTimeDataArray:
+#     def __init__(self,
+#                  dataarray,
+#                  is_1d=False,
+#                  xy_dimname=None):
 
-        self._data = dataarray
-        self.is_1d = is_1d
-        self.xy_dimname = xy_dimname
+#         self._data = dataarray
+#         self.is_1d = is_1d
+#         self.xy_dimname = xy_dimname
 
-    def initial(self):
-        pass
+#     def initial(self):
+#         pass
 
-    def select(self, lat, lon):
-        self._data_subset = self._data.sel(lat=lat, lon=lon, method='nearest')
+#     def select(self, lat, lon):
+#         self._data_subset = self._data.sel(lat=lat, lon=lon, method='nearest')
 
-    @property
-    def values(self):
-        return self._data_subset.values
+#     @property
+#     def values(self):
+#         return self._data_subset.values
 
 
-# Function to create SpaceTimeDataArray from file
-def open_stdataarray(filename, varname, is_1d, xy_dimname, factor=1., offset=0.):
-    if isinstance(filename, str):
-        filename = [filename]
+# # Function to create SpaceTimeDataArray from file
+# def open_stdataarray(filename, varname, is_1d, xy_dimname, factor=1., offset=0.):
+#     if isinstance(filename, str):
+#         filename = [filename]
 
-    ds = xarray.open_mfdataset(filename)
-    da = ds[varname]
-    da = (da * factor) + offset
-    return SpaceTimeDataArray(da, is_1d, xy_dimname)
+#     ds = xarray.open_mfdataset(filename)
+#     da = ds[varname]
+#     da = (da * factor) + offset
+#     return SpaceTimeDataArray(da, is_1d, xy_dimname)
 
 
 def _climate_data_header(start_date: pd.Timestamp) -> str:
@@ -104,13 +106,13 @@ def _open_spatial_dataarray(config, config_section):
     return _open_weather_dataarray(config, config_section)
 
 
-def _open_weather_stdataarray(config, config_section):
-    da = _open_weather_dataarray(config, config_section)
-    return SpaceTimeDataArray(
-        da,
-        vars(config)[config_section].is_1d,
-        vars(config)[config_section].xy_dimname
-    )
+# def _open_weather_stdataarray(config, config_section):
+#     da = _open_weather_dataarray(config, config_section)
+#     return SpaceTimeDataArray(
+#         da,
+#         vars(config)[config_section].is_1d,
+#         vars(config)[config_section].xy_dimname
+#     )
 
 
 class Temperature:
@@ -172,12 +174,40 @@ class _ET0_InputData:
         self._load_surface_pressure()
         self._compute_penman_monteith_inputs()
 
+    def _select_domain(self, x):
+        coords = get_xr_coordinates(x)
+        lats = xarray.DataArray(
+            self.model.domain.y,
+            dims='xy',
+            coords={'xy': self.model.domain.xy}
+        )
+        lons = xarray.DataArray(
+            self.model.domain.x,
+            dims='xy',
+            coords={'xy': self.model.domain.xy}
+        )
+        select_dict = {coords['y']: lats, coords['x']: lons}
+        return x.sel(select_dict, method='nearest')
+
+    def _select_time(self, x):
+        time_dimname = [
+            key for key in x.coords.keys()
+            if key in allowed_t_dim_names
+        ]
+        if len(time_dimname) > 0:
+            select_dict = {time_dimname[0]: self.model.time.values}
+            return x.sel(select_dict, method='nearest')
+        else:
+            return x
+
     def _load_tmin(self):
         tmin = _open_weather_dataarray(self.model.config, 'TMIN')
         try:
             tmin = tmin.metpy.convert_units("degC").metpy.dequantify()
         except DimensionalityError as e:
             warnings.warn(str(e))
+        tmin = self._select_domain(tmin)
+        tmin = self._select_time(tmin)
         self.tmin = tmin
 
     def _load_tmax(self):
@@ -186,6 +216,8 @@ class _ET0_InputData:
             tmax = tmax.metpy.convert_units("degC").metpy.dequantify()
         except DimensionalityError as e:
             warnings.warn(str(e))
+        tmax = self._select_domain(tmax)
+        tmax = self._select_time(tmax)
         self.tmax = tmax
 
     def _load_shortwave_radiation(self):
@@ -197,6 +229,8 @@ class _ET0_InputData:
                 shortwave_radiation = shortwave_radiation.metpy.convert_units("MJ m**-2").metpy.dequantify()
             except DimensionalityError as e:
                 warnings.warn(str(e))
+            shortwave_radiation = self._select_domain(shortwave_radiation)
+            shortwave_radiation = self._select_time(shortwave_radiation)
             self.shortwave_radiation = shortwave_radiation
 
     def _load_dewpoint_temperature(self):
@@ -208,41 +242,59 @@ class _ET0_InputData:
                 tdew = tdew.metpy.convert_units("degC").metpy.dequantify()
             except DimensionalityError as e:
                 warnings.warn(str(e))
+            tdew = self._select_domain(tdew)
+            tdew = self._select_time(tdew)
             self.dewpoint_temperature = tdew
 
     def _load_max_relative_humidity(self):
         # TODO Units %
         if self.model.config.has_max_relative_humidity:
-            self.max_relative_humidity = _open_weather_dataarray(
+            rhmax = _open_weather_dataarray(
                 self.model.config, 'RHMAX'
             )
+            rhmax = self._select_domain(rhmax)
+            rhmax = self._select_time(rhmax)
+            self.max_relative_humidity = rhmax
 
     def _load_min_relative_humidity(self):
         # TODO Units %
         if self.model.config.has_min_relative_humidity:
-            self.min_relative_humidity = _open_weather_dataarray(
+            rhmin = _open_weather_dataarray(
                 self.model.config, 'RHMIN'
             )
+            rhmin = self._select_domain(rhmin)
+            rhmin = self._select_time(rhmin)
+            self.min_relative_humidity = rhmin
 
     def _load_mean_relative_humidity(self):
         # TODO Units %
         if self.model.config.has_mean_relative_humidity:
-            self.mean_relative_humidity = _open_weather_dataarray(
+            rhmean = _open_weather_dataarray(
                 self.model.config, 'RHMEAN'
             )
+            rhmean = self._select_domain(rhmean)
+            rhmean = self._select_time(rhmean)
+            self.mean_relative_humidity = rhmean
 
     def _load_wind_speed(self):
         if self.model.config.has_wind:
             if self.model.config.use_wind_components:
                 wind_u = _open_weather_dataarray(self.model.config, 'WIND_U')
                 wind_v = _open_weather_dataarray(self.model.config, 'WIND_V')
+                try:
+                    wind_u = wind_u.metpy.convert_units("m s**-1").metpy.dequantify()
+                    wind_v = wind_u.metpy.convert_units("m s**-1").metpy.dequantify()
+                except DimensionalityError as e:
+                    warnings.warn(str(e))
                 wind = np.sqrt(wind_u ** 2 + wind_v ** 2)
             else:
                 wind = _open_weather_dataarray(self.model.config, 'WIND')
-            try:
-                wind = wind.metpy.convert_units("m s**-1").metpy.dequantify()
-            except DimensionalityError as e:
-                warnings.warn(str(e))
+                try:
+                    wind = wind.metpy.convert_units("m s**-1").metpy.dequantify()
+                except DimensionalityError as e:
+                    warnings.warn(str(e))
+            wind = self._select_domain(wind)
+            wind = self._select_time(wind)
             self.wind = wind
 
 
@@ -255,12 +307,15 @@ class _ET0_InputData:
                 surface_pressure = surface_pressure.metpy.convert_units("kPa").metpy.dequantify()
             except DimensionalityError as e:
                 warnings.warn(str(e))
+            surface_pressure = self._select_domain(surface_pressure)
+            surface_pressure = self._select_time(surface_pressure)
             self.surface_pressure = surface_pressure
 
         elif self.model.config.has_elevation:
             elevation = _open_spatial_dataarray(
                 self.model.config, 'ELEV'
             )
+            elevation = self._select_domain(elevation)
             surface_pressure = (
                 101.3 * ((293. - 0.0065 * elevation) / 293) ** 5.26
             )
@@ -274,15 +329,6 @@ class _ET0_InputData:
         self._compute_vapour_pressure_deficit()
         self._compute_extraterrestrial_radiation()
         self._compute_net_radiation()
-        # def minmax(x):
-        #     return (np.min(x), np.max(x))
-        # print(minmax(self.tmean.values)) # OK
-        # print(minmax(self.saturated_vapour_pressure.values))
-        # print(self.saturated_vapour_pressure.values)
-        # print(minmax(self.actual_vapour_pressure.values))
-        # print(minmax(self.vapour_pressure_deficit.values))
-        # print(minmax(self.extraterrestrial_radiation.values))
-        # print(minmax(self.net_radiation.values))
 
     def _compute_mean_temperature(self):
         self.tmean = (self.tmin + self.tmax) / 2
@@ -330,12 +376,6 @@ class _ET0_InputData:
         time_coords = {'time': self.model.time.values}
         coords = {**time_coords, **space_coords}
         dims = ['time'] + [dim for dim in self.model.domain._data.dims]
-        # self.extraterrestrial_radiation = xarray.Dataset(
-        #     data_vars=dict(
-        #         extraterrestrial_radiation=(dims, extraterrestrial_radiation)
-        #     ),
-        #     coords=coords
-        # )['extraterrestrial_radiation']
         extraterrestrial_radiation = xarray.DataArray(
             data=extraterrestrial_radiation,
             coords=coords,
@@ -355,10 +395,6 @@ class _ET0_InputData:
     def _compute_saturated_vapour_pressure(self):
         es_min = self._fao_equation_11(self.tmin)
         es_max = self._fao_equation_11(self.tmax)
-        # print(self.tmin.values)
-        # print(self.tmax.values)
-        # print(es_min.values)
-        # print(es_max.values)
         self.saturated_vapour_pressure = (es_min + es_max) / 2.
 
     def _compute_actual_vapour_pressure(self):
@@ -418,6 +454,8 @@ class _ET0_InputData:
 
     def compute_actual_vapour_pressure_from_dewpoint_temperature(self):
         ea = self._fao_equation_11(self.dewpoint_temperature)
+        # print(self.dewpoint_temperature.values)
+        # print(ea.values)
         ea.attrs = {}
         ea.attrs.update(
             long_name='actual vapour pressure',
@@ -444,7 +482,7 @@ class _ET0_InputData:
     def compute_actual_vapour_pressure_from_max_relative_humidity(self):
         es_min = self._fao_equation_11(self.tmin)
         ea = (
-            self.es_min
+            es_min
             * self.max_relative_humidity.values / 100.
         )
         ea.attrs = {}
@@ -525,6 +563,23 @@ class _ET0_PenmanMonteith:
         * surface pressure
         * net radiation
         """
+
+        tmean = self.data.tmean
+        surface_pressure = self.data.surface_pressure
+        wind = self.data.wind
+        vapour_pressure_deficit = self.data.vapour_pressure_deficit
+        net_radiation = self.data.net_radiation
+
+        # # For identifying bugs
+        # Load eto object in scratch
+        # tmean = eto._input_data.tmean
+        # surface_pressure = eto._input_data.surface_pressure
+        # wind = eto._input_data.wind
+        # vapour_pressure_deficit = eto._input_data.vapour_pressure_deficit
+        # net_radiation = eto._input_data.net_radiation
+
+        # TODO check units throughout
+
         cp = 0.001013               # specific heat of air 1013 [MJ kg-1 K-1]
         TimeStepSecs = 86400        # timestep in seconds
         rs = 70                     # surface resistance, 70 [s m-1]
@@ -533,51 +588,37 @@ class _ET0_PenmanMonteith:
         eps = 0.622
 
         # Density of air [kg m-3]
-        rho = self.data.surface_pressure * (self.data.tmean * R)
+        rho = surface_pressure * (tmean * R)
 
         # Latent heat [MJ kg-1]
-        latent_heat = (2.501 - (0.002361 * (self.data.tmean - 273.15)))
+        latent_heat = (2.501 - (0.002361 * (tmean - 273.15)))
 
         # Slope of vapour pressure [kPa K-1]
         deltop = 4098. * \
-            (0.6108 * np.exp((17.27 * (self.data.tmean - 273.15)) /
-                             ((self.data.tmean - 273.15) + 237.3)))
-        delbase = ((self.data.tmean - 273.15) + 237.3) ** 2
+            (0.6108 * np.exp((17.27 * tmean) / (tmean + 237.3)))
+        delbase = (tmean + 237.3) ** 2
         delta = deltop / delbase
 
         # Psychrometric constant [kPa K-1]
-        gamma = (
-            cp * (self.data.surface_pressure / 1000) /
-            (eps * latent_heat)
-        )
+        gamma = cp * surface_pressure / (eps * latent_heat)
 
         # Aerodynamic resistance [m s-1]
         z = 10  # height of wind speed variable (10 meters above surface)
-        Wsp_2 = self.data.wind * 4.87 / (np.log(67.8 * z - 5.42))
+        Wsp_2 = wind * 4.87 / (np.log(67.8 * z - 5.42))
         ra = np.divide(
-            208., Wsp_2.values,
-            # out=xarray.full_like(Wsp_2, fill_value=0), #np.zeros_like(Wsp_2),
+            208.,
+            Wsp_2.values,
             out=np.zeros_like(Wsp_2.values),
             where=Wsp_2 != 0
         )
 
-        # Penman-Monteith equation (NB unit conversion)
-        # print(type(delta))
-        # print(type(self.data.net_radiation))
-        # print(type(self.data.vapour_pressure_deficit))
-        # print(type(rho))
-        # print(type(cp))
-        # print(type(ra))
-        # print(type(gamma))
-        # print(type(rs))
-
         PETtop = np.maximum(
             ((delta * 1e3)
-             * self.data.net_radiation
+             * net_radiation
              + rho
              * (cp * 1e6)
              * np.divide(
-                 self.data.vapour_pressure_deficit.values,
+                 vapour_pressure_deficit.values,
                  ra,
                  out=np.zeros_like(ra),
                  where=ra != 0)),
@@ -589,7 +630,6 @@ class _ET0_PenmanMonteith:
              * (1 + np.divide(rs, ra, out=np.zeros_like(ra), where=ra != 0))),
             1)
         PET = np.maximum(PETtop / PETbase, 0)
-
         PETmm = np.maximum((PET / (latent_heat * 1e6) * TimeStepSecs), 0)
         self.eto = PETmm.copy()
 
@@ -626,6 +666,7 @@ class ET0(SpaceTimeDataArray):
         else:
             # FIXME
             eto_obj = _open_weather_stdataarray(model.config, 'ET0')
+        self._input_data = eto_obj.data
         self._data = eto_obj.eto
 
     # def initial(self):
