@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import os
+# import os
 
 
 def format_parameter(number_str, pad_before=6, pad_after=7):

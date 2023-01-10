@@ -11,26 +11,55 @@ import warnings
 from .Domain import get_xr_coordinates
 from .constants import allowed_t_dim_names
 
-# class SpaceTimeDataArray:
-#     def __init__(self,
-#                  dataarray,
-#                  is_1d=False,
-#                  xy_dimname=None):
 
-#         self._data = dataarray
-#         self.is_1d = is_1d
-#         self.xy_dimname = xy_dimname
+class SpaceTimeInput:
+    def __init__(self,
+                 dataarray,
+                 model):
 
-#     def initial(self):
-#         pass
+        self.model = model
+        self._data = self._select(dataarray)
 
-#     def select(self, lat, lon):
-#         self._data_subset = self._data.sel(lat=lat, lon=lon, method='nearest')
+    def initial(self):
+        pass
 
-#     @property
-#     def values(self):
-#         return self._data_subset.values
+    def _select(self, x):
+        x = self._select_domain(x)
+        x = self._select_time(x)
+        return x
 
+    def _select_domain(self, x):
+        coords = get_xr_coordinates(x)
+        lats = xarray.DataArray(
+            self.model.domain.y,
+            dims='xy',
+            coords={'xy': self.model.domain.xy}
+        )
+        lons = xarray.DataArray(
+            self.model.domain.x,
+            dims='xy',
+            coords={'xy': self.model.domain.xy}
+        )
+        select_dict = {coords['y']: lats, coords['x']: lons}
+        return x.sel(select_dict, method='nearest')
+
+    def _select_time(self, x):
+        time_dimname = [
+            key for key in x.coords.keys()
+            if key in allowed_t_dim_names
+        ]
+        if len(time_dimname) > 0:
+            select_dict = {time_dimname[0]: self.model.time.values}
+            return x.sel(select_dict, method='nearest')
+        else:
+            return x
+
+    def _select_point(self, i):
+        self._data_subset = self._data.sel(xy=i)
+
+    @property
+    def values(self):
+        return self._data_subset.values
 
 # # Function to create SpaceTimeDataArray from file
 # def open_stdataarray(filename, varname, is_1d, xy_dimname, factor=1., offset=0.):
@@ -65,27 +94,13 @@ def _climate_data_header(start_date: pd.Timestamp) -> str:
     return header
 
 
-class Precipitation(SpaceTimeDataArray):
-
-    def _write_aquacrop_input(self, filename):
-        header = _climate_data_header(pd.Timestamp(self.prec._data_subset.time.values[0]))
-        header += "  Total Rain (mm)" + os.linesep
-        header += "======================="
-        with open(filename, "w") as f:
-            np.savetxt(
-                f, self.values, fmt="%.2f", delimiter="\t",
-                newline=os.linesep, header=header, comments=""
-            )
-        return None
-
-
-def _open_weather_dataarray(config, config_section):
+def _open_dataarray(config, config_section):
 
     # Retrieve values from config
     filename = vars(config)[config_section].filename
     varname = vars(config)[config_section].varname
-    is_1d = vars(config)[config_section].is_1d
-    xy_dimname = vars(config)[config_section].xy_dimname
+    # is_1d = vars(config)[config_section].is_1d
+    # xy_dimname = vars(config)[config_section].xy_dimname
     factor = vars(config)[config_section].factor
     offset = vars(config)[config_section].offset
 
@@ -102,35 +117,56 @@ def _open_weather_dataarray(config, config_section):
     return da
 
 
-def _open_spatial_dataarray(config, config_section):
-    return _open_weather_dataarray(config, config_section)
+def open_spacetimeinput(model, config_section, convert_units=False, units=None):
+    da = _open_dataarray(model.config, config_section)
+    if convert_units:
+        try:
+            da = da.metpy.convert_units(units).metpy.dequantify()
+        except DimensionalityError as e:
+            warnings.warn(str(e))
+    return SpaceTimeInput(da, model)
 
 
-# def _open_weather_stdataarray(config, config_section):
-#     da = _open_weather_dataarray(config, config_section)
-#     return SpaceTimeDataArray(
-#         da,
-#         vars(config)[config_section].is_1d,
-#         vars(config)[config_section].xy_dimname
-#     )
+class Precipitation(SpaceTimeInput):
+
+    def __init__(self, model):
+        self.model = model
+        dataarray = _open_dataarray(model.config, 'PREC')
+        self._data = self._select(dataarray)
+
+    def _write_aquacrop_input(self, filename):
+        header = _climate_data_header(pd.Timestamp(self._data_subset.time.values[0]))
+        header += "  Total Rain (mm)" + os.linesep
+        header += "======================="
+        with open(filename, "w") as f:
+            np.savetxt(
+                f, self.values, fmt="%.2f", delimiter="\t",
+                newline=os.linesep, header=header, comments=""
+            )
+        return None
 
 
 class Temperature:
-    def __init__(self, config):
-        self.tmin = _open_weather_stdataarray(config, 'TMIN')
-        self.tmax = _open_weather_stdataarray(config, 'TMAX')
-
-    def initial(self):
-        self.tmin.initial()
-        self.tmax.initial()
-
-    def select(self, lat, lon):
-        self.tmin.select(lat, lon)
-        self.tmax.select(lat, lon)
+    def __init__(self, model):
+        self.tmin = open_spacetimeinput(
+            model, 'TMIN',
+            convert_units=True, units="degree_Celsius"
+        )
+        self.tmax = open_spacetimeinput(
+            model, 'TMAX',
+            convert_units=True, units="degree_Celsius"
+        )
 
     @property
     def values(self):
-        return np.column_stack((self.tmin.values, self.tmax.values))
+        return np.column_stack(
+            (self.tmin._data_subset.values,
+             self.tmax._data_subset.values)
+        )
+
+    def _select_point(self, i):
+        self.tmin._select_point(i)
+        self.tmax._select_point(i)
 
     def _write_aquacrop_input(self, filename):
         header = _climate_data_header(pd.Timestamp(self.tmin._data_subset.time.values[0]))
@@ -174,153 +210,132 @@ class _ET0_InputData:
         self._load_surface_pressure()
         self._compute_penman_monteith_inputs()
 
-    def _select_domain(self, x):
-        coords = get_xr_coordinates(x)
-        lats = xarray.DataArray(
-            self.model.domain.y,
-            dims='xy',
-            coords={'xy': self.model.domain.xy}
-        )
-        lons = xarray.DataArray(
-            self.model.domain.x,
-            dims='xy',
-            coords={'xy': self.model.domain.xy}
-        )
-        select_dict = {coords['y']: lats, coords['x']: lons}
-        return x.sel(select_dict, method='nearest')
+    # def _select_domain(self, x):
+    #     coords = get_xr_coordinates(x)
+    #     lats = xarray.DataArray(
+    #         self.model.domain.y,
+    #         dims='xy',
+    #         coords={'xy': self.model.domain.xy}
+    #     )
+    #     lons = xarray.DataArray(
+    #         self.model.domain.x,
+    #         dims='xy',
+    #         coords={'xy': self.model.domain.xy}
+    #     )
+    #     select_dict = {coords['y']: lats, coords['x']: lons}
+    #     return x.sel(select_dict, method='nearest')
 
-    def _select_time(self, x):
-        time_dimname = [
-            key for key in x.coords.keys()
-            if key in allowed_t_dim_names
-        ]
-        if len(time_dimname) > 0:
-            select_dict = {time_dimname[0]: self.model.time.values}
-            return x.sel(select_dict, method='nearest')
-        else:
-            return x
+    # def _select_time(self, x):
+    #     time_dimname = [
+    #         key for key in x.coords.keys()
+    #         if key in allowed_t_dim_names
+    #     ]
+    #     if len(time_dimname) > 0:
+    #         select_dict = {time_dimname[0]: self.model.time.values}
+    #         return x.sel(select_dict, method='nearest')
+    #     else:
+    #         return x
 
     def _load_tmin(self):
-        tmin = _open_weather_dataarray(self.model.config, 'TMIN')
-        try:
-            tmin = tmin.metpy.convert_units("degC").metpy.dequantify()
-        except DimensionalityError as e:
-            warnings.warn(str(e))
-        tmin = self._select_domain(tmin)
-        tmin = self._select_time(tmin)
-        self.tmin = tmin
+        tmin = open_spacetimeinput(
+            self.model, 'TMIN',
+            convert_units=True, units="degree_Celsius"
+        )
+        self.tmin = tmin._data
 
     def _load_tmax(self):
-        tmax = _open_weather_dataarray(self.model.config, 'TMAX')
-        try:
-            tmax = tmax.metpy.convert_units("degC").metpy.dequantify()
-        except DimensionalityError as e:
-            warnings.warn(str(e))
-        tmax = self._select_domain(tmax)
-        tmax = self._select_time(tmax)
-        self.tmax = tmax
+        tmax = open_spacetimeinput(
+            self.model, 'TMAX',
+            convert_units=True, units="degree_Celsius"
+        )
+        self.tmax = tmax._data
 
     def _load_shortwave_radiation(self):
+        self.shortwave_radiation = None
         if self.model.config.has_solar_radiation:
-            shortwave_radiation = _open_weather_dataarray(
-                self.model.config, 'SWDOWN'
+            shortwave_radiation = open_spacetimeinput(
+                self.model, 'SWDOWN',
+                convert_units=True, units="MJ m**-2"
             )
-            try:
-                shortwave_radiation = shortwave_radiation.metpy.convert_units("MJ m**-2").metpy.dequantify()
-            except DimensionalityError as e:
-                warnings.warn(str(e))
-            shortwave_radiation = self._select_domain(shortwave_radiation)
-            shortwave_radiation = self._select_time(shortwave_radiation)
-            self.shortwave_radiation = shortwave_radiation
+            self.shortwave_radiation = shortwave_radiation._data
 
     def _load_dewpoint_temperature(self):
+        self.dewpoint_temperature = None
         if self.model.config.has_dewpoint_temperature:
-            tdew = _open_weather_dataarray(
-                self.model.config, 'TDEW'
+            dewpoint_temperature = open_spacetimeinput(
+                self.model, 'TDEW',
+                convert_units=True, units="degree_Celsius"
             )
-            try:
-                tdew = tdew.metpy.convert_units("degC").metpy.dequantify()
-            except DimensionalityError as e:
-                warnings.warn(str(e))
-            tdew = self._select_domain(tdew)
-            tdew = self._select_time(tdew)
-            self.dewpoint_temperature = tdew
+            self.dewpoint_temperature = dewpoint_temperature._data
 
     def _load_max_relative_humidity(self):
-        # TODO Units %
+        self.max_relative_humidity = None
         if self.model.config.has_max_relative_humidity:
-            rhmax = _open_weather_dataarray(
-                self.model.config, 'RHMAX'
+            max_relative_humidity = open_spacetimeinput(
+                self.model, 'RHMAX',
+                convert_units=True, units="percent"
             )
-            rhmax = self._select_domain(rhmax)
-            rhmax = self._select_time(rhmax)
-            self.max_relative_humidity = rhmax
+            self.max_relative_humidity = max_relative_humidity._data
 
     def _load_min_relative_humidity(self):
-        # TODO Units %
+        self.min_relative_humidity = None
         if self.model.config.has_min_relative_humidity:
-            rhmin = _open_weather_dataarray(
-                self.model.config, 'RHMIN'
+            min_relative_humidity = open_spacetimeinput(
+                self.model, 'RHMIN',
+                convert_units=True, units="percent"
             )
-            rhmin = self._select_domain(rhmin)
-            rhmin = self._select_time(rhmin)
-            self.min_relative_humidity = rhmin
+            self.min_relative_humidity = min_relative_humidity._data
 
     def _load_mean_relative_humidity(self):
-        # TODO Units %
+        self.mean_relative_humidity = None
         if self.model.config.has_mean_relative_humidity:
-            rhmean = _open_weather_dataarray(
-                self.model.config, 'RHMEAN'
+            mean_relative_humidity = open_spacetimeinput(
+                self.model, 'RHMEAN',
+                convert_units=True, units="percent"
             )
-            rhmean = self._select_domain(rhmean)
-            rhmean = self._select_time(rhmean)
-            self.mean_relative_humidity = rhmean
+            self.mean_relative_humidity = mean_relative_humidity._data
 
     def _load_wind_speed(self):
         if self.model.config.has_wind:
             if self.model.config.use_wind_components:
-                wind_u = _open_weather_dataarray(self.model.config, 'WIND_U')
-                wind_v = _open_weather_dataarray(self.model.config, 'WIND_V')
+                wind_u = _open_dataarray(
+                    self.model.config, 'WIND_U',
+                )
+                wind_v = _open_dataarray(
+                    self.model.config, 'WIND_V',
+                )
                 try:
                     wind_u = wind_u.metpy.convert_units("m s**-1").metpy.dequantify()
-                    wind_v = wind_u.metpy.convert_units("m s**-1").metpy.dequantify()
+                    wind_v = wind_v.metpy.convert_units("m s**-1").metpy.dequantify()
                 except DimensionalityError as e:
                     warnings.warn(str(e))
-                wind = np.sqrt(wind_u ** 2 + wind_v ** 2)
-            else:
-                wind = _open_weather_dataarray(self.model.config, 'WIND')
-                try:
-                    wind = wind.metpy.convert_units("m s**-1").metpy.dequantify()
-                except DimensionalityError as e:
-                    warnings.warn(str(e))
-            wind = self._select_domain(wind)
-            wind = self._select_time(wind)
-            self.wind = wind
 
+                wind = np.sqrt(wind_u ** 2 + wind_v ** 2)
+                wind = SpaceTimeInput(wind, self.model)
+            else:
+                wind = open_spacetimeinput(
+                    self.model, 'WIND',
+                    convert_units=True, units="m s**-1"
+                )
+            self.wind = wind._data
 
     def _load_surface_pressure(self):
         if self.model.config.has_surface_pressure:
-            surface_pressure = _open_weather_dataarray(
-                self.model.config, 'SP'
+            surface_pressure = open_spacetimeinput(
+                self.model, 'SP',
+                convert_units=True, units="kilopascal"
             )
-            try:
-                surface_pressure = surface_pressure.metpy.convert_units("kPa").metpy.dequantify()
-            except DimensionalityError as e:
-                warnings.warn(str(e))
-            surface_pressure = self._select_domain(surface_pressure)
-            surface_pressure = self._select_time(surface_pressure)
-            self.surface_pressure = surface_pressure
 
         elif self.model.config.has_elevation:
-            elevation = _open_spatial_dataarray(
-                self.model.config, 'ELEV'
+            elevation = _open_dataarray(
+                self.model, 'ELEV'
             )
-            elevation = self._select_domain(elevation)
             surface_pressure = (
-                101.3 * ((293. - 0.0065 * elevation) / 293) ** 5.26
+                101.3 * ((293. - 0.0065 * elevation._data) / 293) ** 5.26
             )
-            surface_pressure.attrs.update(units='kPa')
-            self.surface_pressure = surface_pressure
+            surface_pressure.attrs.update(units='kilopascal')
+            surface_pressure = SpaceTimeInput(surface_pressure, self.model)
+        self.surface_pressure = surface_pressure._data
 
     def _compute_penman_monteith_inputs(self):
         self._compute_mean_temperature()
@@ -648,10 +663,29 @@ class _ET0_FromFile:
     def __init__(self, config):
         pass
 
+# class Precipitation(SpaceTimeInput):
 
-class ET0(SpaceTimeDataArray):
+#     def __init__(self, model):
+#         self.model = model
+#         dataarray = _open_dataarray(model.config, 'PREC')
+#         self._data = self._select(dataarray)
+
+#     def _write_aquacrop_input(self, filename):
+#         header = _climate_data_header(pd.Timestamp(self.prec._data_subset.time.values[0]))
+#         header += "  Total Rain (mm)" + os.linesep
+#         header += "======================="
+#         with open(filename, "w") as f:
+#             np.savetxt(
+#                 f, self.values, fmt="%.2f", delimiter="\t",
+#                 newline=os.linesep, header=header, comments=""
+#             )
+#         return None
+
+
+class ET0(SpaceTimeInput):
 
     def __init__(self, model):
+        self.model = model
         preprocess = bool(model.config.ET0.preprocess)
         if preprocess:
             method = str(model.config.ET0.method).lower()
@@ -664,24 +698,13 @@ class ET0(SpaceTimeDataArray):
             else:
                 raise ValueError("Invalid `method` in config: must be one of `Hargreaves`, `PenmanMonteith`, `PriestleyTaylor`")
         else:
-            # FIXME
-            eto_obj = _open_weather_stdataarray(model.config, 'ET0')
+            eto_obj = open_spacetimeinput(model, 'ET0')
         self._input_data = eto_obj.data
         self._data = eto_obj.eto
 
-    # def initial(self):
-    #     self.eto.initial()
-
-    # def select(self, lat, lon):
-    #     self.eto.select(lat, lon)
-
-    # @property
-    # def values(self):
-    #     return self.eto.values
-
     def _write_aquacrop_input(self, filename):
         header = _climate_data_header(pd.Timestamp(self._data_subset.time.values[0]))
-        header += "  Total Rain (mm)" + os.linesep
+        header += "  Average ETo (mm/day)" + os.linesep
         header += "======================="
         with open(filename, "w") as f:
             np.savetxt(

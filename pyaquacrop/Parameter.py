@@ -3,7 +3,7 @@
 from typing import Optional, Union, Any
 from abc import ABC, abstractmethod, abstractproperty
 
-from utils import format_parameter
+from .utils import format_parameter
 
 class BaseParameter(ABC):
     @abstractmethod
@@ -93,7 +93,10 @@ class Parameter(BaseParameter):
             except AttributeError:
                 raise ValueError("`value_dict` must be a dictionary")
 
-            if not all([key in self.depends_on for key in value_dict_keys]):
+            # if not all([key in self.depends_on for key in value_dict_keys]):
+            #     raise ValueError("`value_dict` incomplete")
+
+            if not all([key in value_dict_keys for key in self.depends_on]):
                 raise ValueError("`value_dict` incomplete")
 
             if len(self.depends_on) == 2:
